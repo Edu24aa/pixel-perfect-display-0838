@@ -70,11 +70,16 @@ function Index() {
   };
 
   const approve = (id: string) => {
-    setMilestones((prev) =>
-      prev.map((m) =>
-        m.id === id ? { ...m, status: "approved", dateLabel: `Aprovado em ${stamp()}` } : m,
-      ),
-    );
+    setMilestones((prev) => {
+      const index = prev.findIndex((m) => m.id === id);
+      return prev.map((m, i) => {
+        if (m.id === id) return { ...m, status: "approved", dateLabel: `Aprovado em ${stamp()}` };
+        // A etapa seguinte entra em execução assim que o cliente aprova.
+        if (i === index + 1 && m.status === "pending")
+          return { ...m, status: "in_progress" as MilestoneStatus };
+        return m;
+      });
+    });
     const m = milestones.find((x) => x.id === id);
     if (m) log(`${project.client} aprovou a etapa “${m.title}”`);
   };
