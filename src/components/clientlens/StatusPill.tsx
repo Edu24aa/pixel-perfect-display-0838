@@ -2,9 +2,9 @@ import { cn } from "@/lib/utils";
 import { statusMeta, type MilestoneStatus } from "@/lib/clientlens-data";
 
 const toneClass: Record<string, string> = {
-  success: "bg-success-soft text-success border-success/30",
-  warning: "bg-warning-soft text-warning-foreground border-warning/40",
-  info: "bg-info-soft text-info border-info/30",
+  success: "bg-success-soft text-success border-success/40",
+  warning: "bg-warning-soft text-warning border-warning/40",
+  info: "bg-info-soft text-info border-info/40",
   muted: "bg-muted text-muted-foreground border-border",
 };
 
