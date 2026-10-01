@@ -7,7 +7,7 @@ export default function RouteError({
   error,
   reset,
 }: {
-  error: Error;
+  error: unknown;
   reset: () => void;
 }) {
   console.error(error);
