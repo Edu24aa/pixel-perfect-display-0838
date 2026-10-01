@@ -53,7 +53,7 @@ export function ClientView({ milestones, onApprove, onRequestChange }: Props) {
 
   return (
     <div className="space-y-8">
-      <section className="rounded-xl border border-border bg-card p-6 shadow-[var(--shadow-card)]">
+      <section className="rounded-xl border border-border bg-card p-6 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
@@ -111,9 +111,8 @@ export function ClientView({ milestones, onApprove, onRequestChange }: Props) {
 
                 <div
                   className={cn(
-                    "rounded-xl border bg-card transition-colors",
-                    isReview ? "border-warning/60 shadow-[var(--shadow-card)]" : "border-border",
-                    m.status === "pending" && "bg-muted/40",
+                    "rounded-xl border bg-card shadow-sm transition-colors",
+                    isReview ? "border-warning/60" : "border-border",
                   )}
                 >
                   <button
