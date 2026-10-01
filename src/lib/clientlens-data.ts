@@ -29,7 +29,7 @@ export const statusMeta: Record<
   MilestoneStatus,
   { label: string; tone: "success" | "warning" | "info" | "muted" }
 > = {
-  pending: { label: "Pendente", tone: "muted" },
+  pending: { label: "Pendente", tone: "warning" },
   in_progress: { label: "Em Desenvolvimento", tone: "info" },
   review: { label: "Pronto para Homologação", tone: "warning" },
   approved: { label: "Aprovado", tone: "success" },
