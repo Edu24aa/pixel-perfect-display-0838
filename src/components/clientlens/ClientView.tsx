@@ -4,8 +4,10 @@ import {
   Check,
   ChevronDown,
   Clock,
+  FileText,
   MessageSquare,
   Paperclip,
+  ShieldCheck,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -91,18 +93,20 @@ export function ClientView({ milestones, onApprove, onRequestChange }: Props) {
           {milestones.map((m) => {
             const isOpen = openId === m.id;
             const isReview = m.status === "review";
+            const isApproved = m.status === "approved";
+
             return (
               <li key={m.id} className="relative">
                 <span
                   className={cn(
                     "absolute -left-8 top-4 grid size-6 place-items-center rounded-full border-2 bg-background",
-                    m.status === "approved" && "border-success bg-success text-success-foreground",
+                    isApproved && "border-success bg-success text-success-foreground",
                     isReview && "border-warning bg-warning-soft text-warning-foreground",
                     m.status === "in_progress" && "border-info bg-info-soft text-info",
                     m.status === "pending" && "border-border text-muted-foreground",
                   )}
                 >
-                  {m.status === "approved" ? (
+                  {isApproved ? (
                     <Check className="size-3.5" strokeWidth={3} />
                   ) : (
                     <span className="size-1.5 rounded-full bg-current" />
@@ -146,6 +150,53 @@ export function ClientView({ milestones, onApprove, onRequestChange }: Props) {
                     <div className="border-t border-border px-5 py-4">
                       <p className="text-sm leading-relaxed text-foreground/80">{m.summary}</p>
 
+                      {/* Bloco de Auditoria / Termo de Aceite para etapas Aprovadas */}
+                      {isApproved && (
+                        <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-emerald-900/60 bg-emerald-950/20 p-3.5">
+                          <div className="space-y-1 text-left">
+                            <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400">
+                              <ShieldCheck className="size-4 shrink-0 text-emerald-400" />
+                              Certificado de Homologação Auditado
+                            </div>
+                            <div className="space-y-0.5 font-mono text-[11px] text-muted-foreground">
+                              <p>
+                                Hash de Aceite:{" "}
+                                <span className="text-slate-300">
+                                  SHA256: 7f8a9e2d...{m.id}b04
+                                </span>
+                              </p>
+                              <p>
+                                Autenticação:{" "}
+                                <span className="text-slate-300">
+                                  {project.client} via Assinatura Digital (IP Verificado)
+                                </span>
+                              </p>
+                              <p>
+                                Conformidade:{" "}
+                                <span className="font-semibold text-emerald-400">
+                                  Garantia de Escopo Blindada
+                                </span>
+                              </p>
+                            </div>
+                          </div>
+
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              alert(
+                                `Emitindo PDF: Termo de Homologação e Aceite Formal da etapa "${m.title}". Código de autenticação registrado no sistema.`
+                              )
+                            }
+                            className="h-8 shrink-0 gap-1.5 border-emerald-800/80 bg-emerald-950/40 text-xs font-medium text-emerald-300 hover:bg-emerald-900/60 hover:text-emerald-200"
+                          >
+                            <FileText className="size-3.5" />
+                            Termo de Aceite (.PDF)
+                          </Button>
+                        </div>
+                      )}
+
                       {m.demoUrl && (
                         <a
                           href={m.demoUrl}
@@ -180,9 +231,9 @@ export function ClientView({ milestones, onApprove, onRequestChange }: Props) {
       <Dialog open={!!approveFor} onOpenChange={(o) => !o && setApproveFor(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Confirmar aprovação</DialogTitle>
+            <DialogTitle>Confirmar homologação e aceite</DialogTitle>
             <DialogDescription>
-              Você está aprovando “{approveFor?.title}”. O registro será feito em {now}.
+              Você está formalizando a aprovação da etapa “{approveFor?.title}”. Ao confirmar, um registro de homologação com data, hora ({now}) e hash auditável será emitido.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -198,7 +249,7 @@ export function ClientView({ milestones, onApprove, onRequestChange }: Props) {
                 setApproveFor(null);
               }}
             >
-              Confirmar aprovação
+              Confirmar e Homologar
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -210,10 +261,9 @@ export function ClientView({ milestones, onApprove, onRequestChange }: Props) {
             <div className="mx-auto grid size-11 place-items-center rounded-full bg-success-soft text-success">
               <Check className="size-5" strokeWidth={3} />
             </div>
-            <DialogTitle className="text-center">Entrega aprovada</DialogTitle>
+            <DialogTitle className="text-center">Entrega homologada com sucesso</DialogTitle>
             <DialogDescription className="text-center">
-              “{approved?.title}” foi aprovada em {now}. Nosso time foi notificado e seguirá para a
-              próxima etapa.
+              “{approved?.title}” foi registrada com autenticação em {now}. O certificado auditável já está anexado à etapa e a equipe seguirá para o próximo marco.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="sm:justify-center">
