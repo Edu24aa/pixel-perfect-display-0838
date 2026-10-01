@@ -66,7 +66,7 @@ export function AdminView({ milestones, audit, onStatusChange, onAddMilestone }:
         </Button>
       </div>
 
-      <section className="overflow-hidden rounded-xl border border-border bg-card shadow-[var(--shadow-card)]">
+      <section className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
         <Table>
           <TableHeader>
             <TableRow>
@@ -101,7 +101,7 @@ export function AdminView({ milestones, audit, onStatusChange, onAddMilestone }:
         </Table>
       </section>
 
-      <section className="rounded-xl border border-border bg-card p-6 shadow-[var(--shadow-card)]">
+      <section className="rounded-xl border border-border bg-card p-6 shadow-sm">
         <h2 className="text-sm font-medium uppercase tracking-widest text-muted-foreground">
           Etapas — {project.name}
         </h2>
@@ -135,7 +135,7 @@ export function AdminView({ milestones, audit, onStatusChange, onAddMilestone }:
         </ul>
       </section>
 
-      <section className="rounded-xl border border-border bg-card p-6 shadow-[var(--shadow-card)]">
+      <section className="rounded-xl border border-border bg-card p-6 shadow-sm">
         <h2 className="flex items-center gap-2 text-sm font-medium uppercase tracking-widest text-muted-foreground">
           <History className="size-4" /> Histórico de aprovações
         </h2>
