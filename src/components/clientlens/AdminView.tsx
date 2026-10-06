@@ -30,7 +30,6 @@ import {
 import {
   adminProjects,
   progressFor,
-  project,
   statusMeta,
   statusOrder,
   type AuditEntry,
@@ -40,13 +39,19 @@ import {
 import { StatusPill } from "./StatusPill";
 
 type Props = {
+  project: {
+    name: string;
+    client: string;
+    dueLabel: string;
+    overallStatus: string;
+  };
   milestones: Milestone[];
   audit: AuditEntry[];
-  onStatusChange: (id: string, status: MilestoneStatus) => void;
+  onStatusChange: (id: string, status: MilestoneStatus) => Promise<void> | void;
   onAddMilestone: (title: string, dateLabel: string) => void;
 };
 
-export function AdminView({ milestones, audit, onStatusChange, onAddMilestone }: Props) {
+export function AdminView({ project, milestones, audit, onStatusChange, onAddMilestone }: Props) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [dateLabel, setDateLabel] = useState("");

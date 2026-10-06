@@ -24,21 +24,27 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import {
   progressFor,
-  project,
   type Milestone,
 } from "@/lib/clientlens-data";
 import { StatusPill } from "./StatusPill";
 
 type Props = {
+  project: {
+    name: string;
+    client: string;
+    dueLabel: string;
+    overallStatus: string;
+  };
   milestones: Milestone[];
   onApprove: (id: string) => void;
   onRequestChange: (id: string, feedback: string) => void;
 };
 
-export function ClientView({ milestones, onApprove, onRequestChange }: Props) {
-  const { done, total, percent } = progressFor(milestones);
+export function ClientView({ project, milestones, onApprove, onRequestChange }: Props) {
+  const list = Array.isArray(milestones) ? milestones : [];
+  const { done, total, percent: progressPercentage } = progressFor(list);
   const [openId, setOpenId] = useState<string | null>(
-    milestones.find((m) => m.status === "review")?.id ?? null,
+    list.find((m) => m.status === "review")?.id ?? null,
   );
   const [approveFor, setApproveFor] = useState<Milestone | null>(null);
   const [approved, setApproved] = useState<Milestone | null>(null);
@@ -68,19 +74,19 @@ export function ClientView({ milestones, onApprove, onRequestChange }: Props) {
             </p>
           </div>
           <StatusPill
-            status={percent === 100 ? "approved" : "review"}
+            status={progressPercentage === 100 ? "approved" : "review"}
             className="px-3 py-1 text-sm"
           />
         </div>
 
         <div className="mt-6">
           <div className="flex items-end justify-between text-sm">
-            <span className="font-medium text-foreground">{percent}% concluído</span>
+            <span className="font-medium text-foreground">{progressPercentage}% concluído</span>
             <span className="text-muted-foreground">
               {done} de {total} etapas concluídas
             </span>
           </div>
-          <Progress value={percent} className="mt-2 h-2" />
+          <Progress value={progressPercentage} className="mt-2 h-2" />
         </div>
       </section>
 

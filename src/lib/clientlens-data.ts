@@ -133,13 +133,15 @@ export const adminProjects: AdminProject[] = [
   },
 ];
 
-export function progressFor(milestones: Milestone[]) {
-  // Uma etapa conta como concluída quando o trabalho foi entregue
-  // (em desenvolvimento pós-aprovação, em homologação ou aprovada).
-  const done = milestones.filter((m) => m.status !== "pending").length;
+export function progressFor(milestones: Milestone[] = []) {
+  const list = Array.isArray(milestones) ? milestones : [];
+  const total = list.length;
+  const approved = list.filter((m) => m.status === "approved").length;
+  const percent = total > 0 ? Math.round((approved / total) * 100) : 0;
+
   return {
-    done,
-    total: milestones.length,
-    percent: Math.round((done / milestones.length) * 100),
+    done: approved,
+    total,
+    percent,
   };
 }
