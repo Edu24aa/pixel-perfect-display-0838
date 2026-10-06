@@ -168,7 +168,7 @@ function Index() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl px-6 py-10">
+      <main className="mx-auto max-w-5xl px-6 py-10" translate="no">
         {view === "client" ? (
           <ClientView
             project={projectData}

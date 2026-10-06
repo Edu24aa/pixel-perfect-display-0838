@@ -81,9 +81,11 @@ export function ClientView({ project, milestones, onApprove, onRequestChange }: 
 
         <div className="mt-6">
           <div className="flex items-end justify-between text-sm">
-            <span className="font-medium text-foreground">{progressPercentage}% concluído</span>
+            <span className="font-medium text-foreground">
+              <span>{progressPercentage}%</span> concluído
+            </span>
             <span className="text-muted-foreground">
-              {done} de {total} etapas concluídas
+              <span>{done}</span> de <span>{total}</span> etapas concluídas
             </span>
           </div>
           <Progress value={progressPercentage} className="mt-2 h-2" />
@@ -307,7 +309,7 @@ export function ClientView({ project, milestones, onApprove, onRequestChange }: 
             className="inline-flex items-center gap-2 self-start text-sm text-muted-foreground hover:text-foreground cursor-pointer"
           >
             <Paperclip className="size-4" />
-            {attached ? "print-checkout.png anexado" : "Anexar arquivo"}
+            <span>{attached ? "print-checkout.png anexado" : "Anexar arquivo"}</span>
           </button>
           <DialogFooter>
             <Button
