@@ -9,15 +9,89 @@ export type ProjectApiResponse = {
     client: string;
     dueLabel: string;
     overallStatus: string;
+    accessCode?: string;
     milestones: Milestone[];
   };
   auditLog: AuditEntry[];
+};
+
+export type ManagerLoginResponse = {
+  success: boolean;
+  user?: {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+  };
+  error?: string;
+};
+
+export type ManagerUser = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  createdAt: string;
 };
 
 export async function fetchProjectData(): Promise<ProjectApiResponse> {
   const res = await fetch(`${API_BASE_URL}/project`);
   if (!res.ok) throw new Error("Falha ao carregar dados do projeto");
   return res.json();
+}
+
+export async function trackProject(code: string): Promise<ProjectApiResponse> {
+  const res = await fetch(`${API_BASE_URL}/project/track/${encodeURIComponent(code)}`);
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.error ?? "Falha ao consultar projeto por código");
+  }
+
+  return res.json();
+}
+
+export async function loginManager(credentials: { email: string; password: string }): Promise<ManagerLoginResponse> {
+  const res = await fetch(`${API_BASE_URL}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(credentials),
+  });
+
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    throw new Error(data.error ?? "Falha ao autenticar gestor");
+  }
+
+  return data;
+}
+
+export async function fetchUsers(): Promise<ManagerUser[]> {
+  const res = await fetch(`${API_BASE_URL}/users`);
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.error ?? "Falha ao carregar usuários");
+  }
+
+  return res.json();
+}
+
+export async function createUser(userData: { name: string; email: string; password: string; role?: string }): Promise<ManagerUser> {
+  const res = await fetch(`${API_BASE_URL}/users`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(userData),
+  });
+
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    throw new Error(data.error ?? "Falha ao cadastrar usuário");
+  }
+
+  return data;
 }
 
 export async function approveMilestone(id: string, clientName: string) {

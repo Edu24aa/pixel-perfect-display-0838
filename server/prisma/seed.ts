@@ -6,6 +6,7 @@ async function main() {
   await prisma.auditEntry.deleteMany();
   await prisma.milestone.deleteMany();
   await prisma.project.deleteMany();
+  await prisma.user.deleteMany();
 
   const project = await prisma.project.create({
     data: {
@@ -13,6 +14,7 @@ async function main() {
       client: "Nordeste Varejo S.A.",
       dueLabel: "24 de Outubro",
       overallStatus: "Em Homologação",
+      accessCode: "NF-2024-001",
       milestones: {
         create: [
           {
@@ -49,6 +51,17 @@ async function main() {
     },
   });
 
+  const manager = await prisma.user.upsert({
+    where: { email: "admin@clientlens.com" },
+    update: {},
+    create: {
+      email: "admin@clientlens.com",
+      password: "admin123",
+      name: "Gestor TI",
+      role: "MANAGER",
+    },
+  });
+
   await prisma.auditEntry.createMany({
     data: [
       {
@@ -67,6 +80,7 @@ async function main() {
   });
 
   console.log("Banco populado com sucesso para o projeto:", project.name);
+  console.log("Gestor padrão criado:", manager.email, "role=", manager.role);
 }
 
 main()

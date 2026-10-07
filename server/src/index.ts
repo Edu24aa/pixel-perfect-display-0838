@@ -9,6 +9,37 @@ const PORT = process.env.PORT || 3333;
 app.use(cors());
 app.use(express.json());
 
+app.post('/api/auth/login', async (req, res) => {
+  const { email, password } = req.body ?? {};
+
+  if (!email || !password) {
+    return res.status(401).json({ success: false, error: 'Credenciais inválidas' });
+  }
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { email: String(email).trim().toLowerCase() },
+    });
+
+    if (!user || user.password !== String(password)) {
+      return res.status(401).json({ success: false, error: 'Credenciais inválidas' });
+    }
+
+    return res.json({
+      success: true,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+    });
+  } catch (error) {
+    console.error('Erro ao autenticar usuário:', error);
+    return res.status(500).json({ success: false, error: 'Erro interno do servidor' });
+  }
+});
+
 // 1. Obter o projeto ativo com todos os marcos e histórico de auditoria
 app.get('/api/project', async (_req, res) => {
   try {
@@ -31,6 +62,101 @@ app.get('/api/project', async (_req, res) => {
     return res.json({ project, auditLog });
   } catch (error) {
     console.error('Erro ao buscar projeto:', error);
+    return res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
+app.get('/api/users', async (_req, res) => {
+  try {
+    const users = await prisma.user.findMany({
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        createdAt: true,
+      },
+    });
+
+    return res.json(users);
+  } catch (error) {
+    console.error('Erro ao listar usuários:', error);
+    return res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
+app.post('/api/users', async (req, res) => {
+  const { name, email, password, role = 'MANAGER' } = req.body ?? {};
+
+  if (!name || !email || !password) {
+    return res.status(400).json({ error: 'Nome, e-mail e senha são obrigatórios' });
+  }
+
+  const normalizedRole = String(role).trim().toUpperCase();
+  const allowedRoles = new Set(['MANAGER', 'GESTOR', 'ADMIN', 'CONSULTANT', 'CONSULTOR']);
+
+  if (!allowedRoles.has(normalizedRole)) {
+    return res.status(400).json({ error: 'Perfil inválido' });
+  }
+
+  try {
+    const existingUser = await prisma.user.findUnique({
+      where: { email: String(email).trim().toLowerCase() },
+    });
+
+    if (existingUser) {
+      return res.status(400).json({ error: 'E-mail já cadastrado' });
+    }
+
+    const createdUser = await prisma.user.create({
+      data: {
+        name: String(name).trim(),
+        email: String(email).trim().toLowerCase(),
+        password: String(password),
+        role: normalizedRole === 'GESTOR' ? 'MANAGER' : normalizedRole === 'CONSULTOR' ? 'CONSULTANT' : normalizedRole,
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        createdAt: true,
+      },
+    });
+
+    return res.status(201).json(createdUser);
+  } catch (error) {
+    console.error('Erro ao criar usuário:', error);
+    return res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
+// 1.1. Consultar projeto por código/NF sem login
+app.get('/api/project/track/:code', async (req, res) => {
+  const { code } = req.params;
+
+  try {
+    const project = await prisma.project.findUnique({
+      where: { accessCode: String(code).trim() },
+      include: {
+        milestones: {
+          orderBy: { order: 'asc' },
+        },
+      },
+    });
+
+    if (!project) {
+      return res.status(404).json({ error: 'Projeto ou Nota Fiscal não encontrada' });
+    }
+
+    const auditLog = await prisma.auditEntry.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return res.json({ project, auditLog });
+  } catch (error) {
+    console.error('Erro ao buscar projeto por código:', error);
     return res.status(500).json({ error: 'Erro interno do servidor' });
   }
 });

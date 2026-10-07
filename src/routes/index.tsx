@@ -1,25 +1,10 @@
-import { useEffect, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
-import { Aperture } from "lucide-react";
+import { useState } from "react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { Aperture, ArrowRight, Search } from "lucide-react";
 
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ClientView } from "@/components/clientlens/ClientView";
-import { AdminView } from "@/components/clientlens/AdminView";
-import {
-  initialAudit,
-  initialMilestones,
-  project as defaultProject,
-  statusMeta,
-  type AuditEntry,
-  type Milestone,
-  type MilestoneStatus,
-} from "@/lib/clientlens-data";
-import {
-  approveMilestone,
-  fetchProjectData,
-  requestMilestoneAdjustment,
-  updateMilestoneStatus,
-} from "@/services/api";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { trackProject } from "@/services/api";
 
 const title = "ClientLens — Acompanhe suas entregas de software";
 const description =
@@ -37,154 +22,89 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-function stamp() {
-  return new Date().toLocaleString("pt-BR", {
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
 function Index() {
-  const [view, setView] = useState("client");
-  const [projectData, setProjectData] = useState(defaultProject);
-  const [milestones, setMilestones] = useState<Milestone[]>(initialMilestones);
-  const [audit, setAudit] = useState<AuditEntry[]>(initialAudit);
-  const [isLoading, setIsLoading] = useState(true);
+  const navigate = useNavigate();
+  const [code, setCode] = useState("NF-2024-001");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const log = (text: string) =>
-    setAudit((prev) => [{ id: crypto.randomUUID(), text, timestamp: stamp() }, ...prev]);
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const normalizedCode = code.trim();
 
-  const applyProjectSnapshot = (data: Awaited<ReturnType<typeof fetchProjectData>>) => {
-    const nextProject = data.project ?? defaultProject;
+    if (!normalizedCode) {
+      setError("Informe um código ou número da nota fiscal.");
+      return;
+    }
 
-    setProjectData({
-      name: nextProject.name ?? defaultProject.name,
-      client: nextProject.client ?? defaultProject.client,
-      dueLabel: nextProject.dueLabel ?? defaultProject.dueLabel,
-      overallStatus: nextProject.overallStatus ?? defaultProject.overallStatus,
-    });
-    setMilestones(Array.isArray(nextProject.milestones) ? nextProject.milestones : initialMilestones);
-    setAudit(Array.isArray(data.auditLog) ? data.auditLog : initialAudit);
-  };
-
-  const loadProject = async () => {
     setIsLoading(true);
+    setError("");
 
     try {
-      const data = await fetchProjectData();
-      applyProjectSnapshot(data);
-    } catch (error) {
-      console.error(error);
-      setProjectData(defaultProject);
-      setMilestones(initialMilestones);
-      setAudit(initialAudit);
+      await trackProject(normalizedCode);
+      void navigate({ to: "/tracking", search: { code: normalizedCode } });
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Código não encontrado. Verifique e tente novamente.",
+      );
     } finally {
       setIsLoading(false);
     }
   };
 
-  useEffect(() => {
-    void loadProject();
-  }, []);
-
-  const setStatus = async (id: string, status: MilestoneStatus) => {
-    const milestone = Array.isArray(milestones) ? milestones.find((x) => x.id === id) : undefined;
-    const nextDateLabel =
-      status === "approved"
-        ? `Aprovado em ${stamp()}`
-        : status === "review"
-          ? "Aguardando sua aprovação"
-          : milestone?.dateLabel ?? "Sem data";
-
-    try {
-      await updateMilestoneStatus(id, status, nextDateLabel);
-      const data = await fetchProjectData();
-      applyProjectSnapshot(data);
-
-      if (milestone) {
-        log(`Equipe de TI alterou “${milestone.title}” para ${statusMeta[status].label}`);
-      }
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  const approve = async (id: string) => {
-    try {
-      await approveMilestone(id, projectData.client);
-      const data = await fetchProjectData();
-      applyProjectSnapshot(data);
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  const requestChange = async (id: string, feedback: string) => {
-    try {
-      await requestMilestoneAdjustment(id, feedback);
-      const data = await fetchProjectData();
-      applyProjectSnapshot(data);
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  const addMilestone = (title: string, dateLabel: string) => {
-    setMilestones((prev) => [
-      ...prev,
-      { id: crypto.randomUUID(), title, dateLabel, status: "pending", summary: dateLabel },
-    ]);
-    log(`Equipe de TI criou o marco “${title}”`);
-  };
-
-  if (isLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="rounded-xl border border-border bg-card px-6 py-4 text-sm text-muted-foreground shadow-sm">
-          Carregando dados do projeto...
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-20 border-b border-border bg-card shadow-sm">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-6 py-3">
-          <div className="flex items-center gap-2">
-            <span className="grid size-7 place-items-center rounded-md bg-primary text-primary-foreground">
-              <Aperture className="size-4" />
-            </span>
-            <span className="text-sm font-semibold tracking-tight text-foreground">ClientLens</span>
+    <div className="min-h-screen bg-slate-950 px-4 py-8 text-slate-50">
+      <header className="mx-auto flex max-w-6xl items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="grid size-10 place-items-center rounded-2xl bg-cyan-500 text-slate-950 shadow-lg shadow-cyan-500/30">
+            <Aperture className="size-5" />
+          </span>
+          <div>
+            <div className="text-sm font-semibold tracking-[0.14em] text-cyan-300">ClientLens</div>
+            <div className="text-[10px] uppercase tracking-[0.22em] text-slate-400">Entregas com clareza</div>
           </div>
-          <Tabs value={view} onValueChange={setView}>
-            <TabsList>
-              <TabsTrigger value="client">Área do Cliente</TabsTrigger>
-              <TabsTrigger value="admin">Gestor / TI</TabsTrigger>
-            </TabsList>
-          </Tabs>
         </div>
+
+        <Link to="/login">
+          <Button variant="outline" className="border-slate-700 bg-slate-900 text-slate-100 hover:bg-slate-800">
+            Acesso Gestor / TI
+          </Button>
+        </Link>
       </header>
 
-      <main className="mx-auto max-w-5xl px-6 py-10" translate="no">
-        {view === "client" ? (
-          <ClientView
-            project={projectData}
-            milestones={milestones}
-            onApprove={approve}
-            onRequestChange={requestChange}
-          />
-        ) : (
-          <AdminView
-            project={projectData}
-            milestones={milestones}
-            audit={audit}
-            onStatusChange={setStatus}
-            onAddMilestone={addMilestone}
-          />
-        )}
+      <main className="mx-auto flex min-h-[calc(100vh-88px)] max-w-5xl items-center justify-center">
+        <div className="w-full max-w-2xl rounded-3xl border border-slate-800 bg-slate-900/80 p-8 shadow-2xl shadow-slate-950/50 backdrop-blur-sm md:p-10">
+          <div className="mb-8 text-center">
+            <p className="text-sm font-medium uppercase tracking-[0.22em] text-cyan-300">Acompanhe sua Entrega</p>
+            <h1 className="mt-4 text-3xl font-semibold text-white md:text-5xl">ClientLens</h1>
+            <p className="mt-3 text-sm text-slate-300 md:text-base">
+              Consulte o status, acompanhe os marcos e confirme a evolução do projeto em tempo real.
+            </p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-slate-500" />
+              <Input
+                value={code}
+                onChange={(event) => setCode(event.target.value)}
+                placeholder="Ex: NF-2024-001"
+                className="h-14 border-slate-700 bg-slate-950 pl-11 text-base text-white placeholder:text-slate-500"
+              />
+            </div>
+
+            {error ? (
+              <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+                {error}
+              </div>
+            ) : null}
+
+            <Button type="submit" className="h-12 w-full gap-2 text-base" disabled={isLoading}>
+              {isLoading ? "Consultando..." : "Consultar Status"}
+              {!isLoading ? <ArrowRight className="size-4" /> : null}
+            </Button>
+          </form>
+        </div>
       </main>
     </div>
   );

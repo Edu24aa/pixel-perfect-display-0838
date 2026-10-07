@@ -13,8 +13,18 @@ model Project {
   client        String
   dueLabel      String
   overallStatus String      @default("Em Homologação")
+  accessCode    String      @unique @default("NF-2024-001")
   createdAt     DateTime    @default(now())
   milestones    Milestone[]
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      String   @default("MANAGER")
+  createdAt DateTime @default(now())
 }
 
 model Milestone {

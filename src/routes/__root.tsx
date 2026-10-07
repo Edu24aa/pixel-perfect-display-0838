@@ -6,7 +6,7 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { lazy, type ReactNode } from "react";
+import { lazy, useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 
@@ -85,6 +85,17 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const body = document.body;
+
+    root.lang = "pt-BR";
+    root.setAttribute("translate", "no");
+    root.classList.remove("translated-ltr", "translated-rtl");
+    body.classList.remove("translated-ltr", "translated-rtl");
+    body.setAttribute("translate", "no");
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>

@@ -47,6 +47,7 @@ export const project = {
   client: "Nordeste Varejo S.A.",
   dueLabel: "24 de Outubro",
   overallStatus: "Em Homologação",
+  accessCode: "NF-2024-001",
 };
 
 export const initialMilestones: Milestone[] = [
