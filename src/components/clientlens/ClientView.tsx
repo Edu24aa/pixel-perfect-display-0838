@@ -37,7 +37,7 @@ type Props = {
   };
   milestones: Milestone[];
   onApprove: (id: string) => void;
-  onRequestChange: (id: string, feedback: string) => void;
+  onRequestChange: (id: string, feedback: string, clientName?: string) => void;
 };
 
 export function ClientView({ project, milestones, onApprove, onRequestChange }: Props) {
@@ -326,7 +326,7 @@ export function ClientView({ project, milestones, onApprove, onRequestChange }: 
               disabled={!feedback.trim()}
               onClick={() => {
                 if (!adjustFor) return;
-                onRequestChange(adjustFor.id, feedback.trim());
+                onRequestChange(adjustFor.id, feedback.trim(), project.client);
                 setAdjustFor(null);
                 setFeedback("");
                 setAttached(false);

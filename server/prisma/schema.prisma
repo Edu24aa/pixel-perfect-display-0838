@@ -44,5 +44,6 @@ model AuditEntry {
   id        String   @id @default(uuid())
   text      String
   timestamp String
+  read      Boolean  @default(false)
   createdAt DateTime @default(now())
 }

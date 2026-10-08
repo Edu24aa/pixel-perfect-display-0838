@@ -13,6 +13,8 @@ export type AuditEntry = {
   id: string;
   text: string;
   timestamp: string;
+  read?: boolean;
+  createdAt?: string;
 };
 
 export type AdminProject = {

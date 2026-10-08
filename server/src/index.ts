@@ -161,6 +161,36 @@ app.get('/api/project/track/:code', async (req, res) => {
   }
 });
 
+app.get('/api/notifications', async (_req, res) => {
+  try {
+    const notifications = await prisma.auditEntry.findMany({
+      where: { read: false },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return res.json(notifications);
+  } catch (error) {
+    console.error('Erro ao listar notificações:', error);
+    return res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
+app.patch('/api/notifications/:id/read', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const notification = await prisma.auditEntry.update({
+      where: { id },
+      data: { read: true },
+    });
+
+    return res.json(notification);
+  } catch (error) {
+    console.error('Erro ao atualizar notificação:', error);
+    return res.status(500).json({ error: 'Falha ao atualizar notificação' });
+  }
+});
+
 // 2. Homologar/Aprovar um marco (Milestone)
 app.patch('/api/milestones/:id/approve', async (req, res) => {
   const { id } = req.params;
@@ -196,7 +226,7 @@ app.patch('/api/milestones/:id/approve', async (req, res) => {
 // 3. Solicitar ajuste / Reprovar marco
 app.patch('/api/milestones/:id/request-change', async (req, res) => {
   const { id } = req.params;
-  const { reason = 'Ajustes solicitados' } = req.body;
+  const { reason = 'Ajustes solicitados', clientName = 'Cliente' } = req.body;
 
   try {
     const updatedMilestone = await prisma.milestone.update({
@@ -212,8 +242,9 @@ app.patch('/api/milestones/:id/request-change', async (req, res) => {
 
     await prisma.auditEntry.create({
       data: {
-        text: `Ajuste solicitado em “${updatedMilestone.title}”: ${reason}`,
+        text: `Cliente ${clientName} sugeriu um ajuste em “${updatedMilestone.title}”: ${reason}`,
         timestamp: formattedDate,
+        read: false,
       },
     });
 

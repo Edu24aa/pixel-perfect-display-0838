@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Aperture, ArrowLeft, LogOut, ShieldCheck } from "lucide-react";
+import { Aperture, ArrowLeft, Bell, LogOut, ShieldCheck } from "lucide-react";
 
 import { AdminView } from "@/components/clientlens/AdminView";
 import { ClientView } from "@/components/clientlens/ClientView";
@@ -18,6 +18,8 @@ import {
 } from "@/lib/clientlens-data";
 import {
   approveMilestone,
+  fetchNotifications,
+  markNotificationAsRead,
   requestMilestoneAdjustment,
   trackProject,
   updateMilestoneStatus,
@@ -49,8 +51,11 @@ function TrackingPage() {
   const [projectData, setProjectData] = useState(defaultProject);
   const [milestones, setMilestones] = useState<Milestone[]>(initialMilestones);
   const [audit, setAudit] = useState<AuditEntry[]>(initialAudit);
+  const [notifications, setNotifications] = useState<AuditEntry[]>([]);
+  const [notificationToast, setNotificationToast] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const previousNotificationsRef = useRef(0);
 
   const applyProjectSnapshot = (data: Awaited<ReturnType<typeof trackProject>>) => {
     const nextProject = data.project ?? defaultProject;
@@ -99,6 +104,40 @@ function TrackingPage() {
     }
   }, [isManager]);
 
+  const loadNotifications = async () => {
+    try {
+      const nextNotifications = await fetchNotifications();
+      setNotifications(nextNotifications);
+    } catch (err) {
+      console.error("Erro ao carregar notificações:", err);
+    }
+  };
+
+  useEffect(() => {
+    if (!isManager) {
+      setNotifications([]);
+      setNotificationToast(null);
+      return;
+    }
+
+    void loadNotifications();
+    const intervalId = window.setInterval(() => {
+      void loadNotifications();
+    }, 15000);
+
+    return () => window.clearInterval(intervalId);
+  }, [isManager]);
+
+  useEffect(() => {
+    const unread = notifications.filter((item) => !item.read);
+    if (unread.length > previousNotificationsRef.current) {
+      const newest = unread[0];
+      setNotificationToast(`Nova Notificação: ${newest.text}`);
+      window.setTimeout(() => setNotificationToast(null), 4000);
+    }
+    previousNotificationsRef.current = unread.length;
+  }, [notifications]);
+
   const log = (text: string) => {
     setAudit((current) => [{ id: crypto.randomUUID(), text, timestamp: stamp() }, ...current]);
   };
@@ -135,11 +174,12 @@ function TrackingPage() {
     }
   };
 
-  const requestChange = async (id: string, feedback: string) => {
+  const requestChange = async (id: string, feedback: string, clientName?: string) => {
     try {
-      await requestMilestoneAdjustment(id, feedback);
+      await requestMilestoneAdjustment(id, feedback, clientName);
       const data = await trackProject(code);
       applyProjectSnapshot(data);
+      void loadNotifications();
     } catch (err) {
       console.error(err);
     }
@@ -158,8 +198,28 @@ function TrackingPage() {
     void navigate({ to: "/login" });
   };
 
+  const unreadNotificationsCount = notifications.filter((item) => !item.read).length;
+
+  const handleMarkNotificationRead = async (id: string) => {
+    try {
+      await markNotificationAsRead(id);
+      setNotifications((current) => current.filter((item) => item.id !== id));
+    } catch (err) {
+      console.error("Erro ao marcar notificação como lida:", err);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-50">
+      {notificationToast ? (
+        <div className="pointer-events-none fixed inset-x-0 top-4 z-50 flex justify-center px-4">
+          <div className="flex items-center gap-3 rounded-full border border-red-500/50 bg-red-500/90 px-4 py-2 text-sm font-medium text-white shadow-lg shadow-red-950/40">
+            <span className="inline-block size-2.5 animate-pulse rounded-full bg-white" />
+            {notificationToast}
+          </div>
+        </div>
+      ) : null}
+
       <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur-sm">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-4 sm:px-6">
           <Link to="/" className="flex items-center gap-3">
@@ -181,6 +241,19 @@ function TrackingPage() {
                     <TabsTrigger value="admin">Gestor / TI</TabsTrigger>
                   </TabsList>
                 </Tabs>
+
+                <button
+                  type="button"
+                  className="relative inline-flex items-center gap-2 rounded-md border border-slate-700 bg-slate-800 px-2.5 py-2 text-sm text-slate-100"
+                  aria-label="Notificações"
+                >
+                  <Bell className="size-4" />
+                  {unreadNotificationsCount > 0 ? (
+                    <span className="absolute -right-1 -top-1 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white shadow-lg shadow-red-500/60 animate-pulse">
+                      {unreadNotificationsCount}
+                    </span>
+                  ) : null}
+                </button>
 
                 <Button variant="outline" size="sm" onClick={handleLogout} className="border-slate-700 text-slate-200 hover:bg-slate-800">
                   <LogOut className="mr-2 size-4" />
@@ -219,6 +292,8 @@ function TrackingPage() {
                 project={projectData}
                 milestones={milestones}
                 audit={audit}
+                notifications={notifications}
+                onMarkNotificationRead={handleMarkNotificationRead}
                 onStatusChange={setStatus}
                 onAddMilestone={addMilestone}
               />

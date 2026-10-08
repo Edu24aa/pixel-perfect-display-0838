@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { History, Plus, UserPlus } from "lucide-react";
+import { Bell, History, Plus, UserPlus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,11 +50,21 @@ type Props = {
   };
   milestones: Milestone[];
   audit: AuditEntry[];
+  notifications: AuditEntry[];
+  onMarkNotificationRead: (id: string) => Promise<void> | void;
   onStatusChange: (id: string, status: MilestoneStatus) => Promise<void> | void;
   onAddMilestone: (title: string, dateLabel: string) => void;
 };
 
-export function AdminView({ project, milestones, audit, onStatusChange, onAddMilestone }: Props) {
+export function AdminView({
+  project,
+  milestones,
+  audit,
+  notifications,
+  onMarkNotificationRead,
+  onStatusChange,
+  onAddMilestone,
+}: Props) {
   const [open, setOpen] = useState(false);
   const [userDialogOpen, setUserDialogOpen] = useState(false);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
@@ -88,7 +98,9 @@ export function AdminView({ project, milestones, audit, onStatusChange, onAddMil
   };
   const [userError, setUserError] = useState("");
   const [userSuccess, setUserSuccess] = useState("");
+  const [selectedNotification, setSelectedNotification] = useState<AuditEntry | null>(null);
   const current = progressFor(milestones);
+  const unreadNotifications = notifications.filter((item) => !item.read);
 
   const directAccessLink =
     typeof window !== "undefined"
@@ -180,6 +192,11 @@ export function AdminView({ project, milestones, audit, onStatusChange, onAddMil
     window.location.href = url;
   };
 
+  const handleOpenNotification = async (notification: AuditEntry) => {
+    setSelectedNotification(notification);
+    await onMarkNotificationRead(notification.id);
+  };
+
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -190,8 +207,8 @@ export function AdminView({ project, milestones, audit, onStatusChange, onAddMil
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            className="bg-cyan-500 text-slate-950 hover:bg-cyan-400"
+          <button
+            type="button"
             onClick={() => {
               setShareClientName(project.client);
               setSharePhone("");
@@ -199,9 +216,25 @@ export function AdminView({ project, milestones, audit, onStatusChange, onAddMil
               setCopyFeedback("");
               setShareDialogOpen(true);
             }}
+            className="inline-flex items-center justify-center rounded-md bg-cyan-500 px-4 py-2 text-sm font-medium text-slate-950 shadow-sm transition-colors hover:bg-cyan-400"
           >
             Enviar Acesso ao Cliente
-          </Button>
+          </button>
+
+          <button
+            type="button"
+            className="relative inline-flex items-center gap-2 rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm font-medium text-slate-100"
+            aria-label="Notificações pendentes"
+          >
+            <Bell className="size-4" />
+            Sugestões
+            {unreadNotifications.length > 0 ? (
+              <span className="absolute -right-2 -top-2 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white shadow-lg shadow-red-500/60 animate-pulse">
+                {unreadNotifications.length}
+              </span>
+            ) : null}
+          </button>
+
           <Button variant="outline" onClick={() => setUserDialogOpen(true)}>
             <UserPlus className="mr-2 size-4" /> Novo Usuário
           </Button>
@@ -298,6 +331,60 @@ export function AdminView({ project, milestones, audit, onStatusChange, onAddMil
       </section>
 
       <section className="rounded-xl border border-border bg-card p-6 shadow-sm">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-sm font-medium uppercase tracking-widest text-muted-foreground">
+            Sugestões e Ajustes dos Clientes
+          </h2>
+          {unreadNotifications.length > 0 ? (
+            <span className="rounded-full border border-red-500/40 bg-red-500/10 px-2 py-1 text-xs font-medium text-red-200">
+              {unreadNotifications.length} pendente{unreadNotifications.length > 1 ? "s" : ""}
+            </span>
+          ) : null}
+        </div>
+
+        {notifications.length === 0 ? (
+          <p className="mt-4 text-sm text-muted-foreground">Nenhuma sugestão ou ajuste pendente.</p>
+        ) : (
+          <div className="mt-4 space-y-3">
+            {notifications.map((notification) => (
+              <button
+                key={notification.id}
+                type="button"
+                onClick={() => void handleOpenNotification(notification)}
+                className={[
+                  "w-full rounded-lg border p-4 text-left transition-colors",
+                  !notification.read
+                    ? "border-red-500/40 bg-red-500/5 shadow-[inset_0_0_0_1px_rgba(239,68,68,0.08)]"
+                    : "border-border bg-transparent",
+                ].join(" ")}
+              >
+                <div className="flex items-start gap-3">
+                  {!notification.read ? (
+                    <span className="mt-1.5 size-2.5 shrink-0 rounded-full bg-red-500 animate-pulse" />
+                  ) : (
+                    <span className="mt-1.5 size-2.5 shrink-0 rounded-full bg-slate-500" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className={notification.read ? "text-sm text-foreground/80" : "text-sm font-medium text-red-100"}>
+                      {notification.text}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {notification.timestamp || new Date(notification.createdAt ?? Date.now()).toLocaleString("pt-BR")}
+                    </p>
+                  </div>
+                  {!notification.read ? (
+                    <span className="rounded-full border border-red-500/40 bg-red-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-widest text-red-200">
+                      Novo
+                    </span>
+                  ) : null}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="rounded-xl border border-border bg-card p-6 shadow-sm">
         <h2 className="text-sm font-medium uppercase tracking-widest text-muted-foreground">
           Gestores cadastrados
         </h2>
@@ -333,6 +420,36 @@ export function AdminView({ project, milestones, audit, onStatusChange, onAddMil
           </div>
         )}
       </section>
+
+      <Dialog open={Boolean(selectedNotification)} onOpenChange={(openState) => !openState && setSelectedNotification(null)}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Visualizar sugestão do cliente</DialogTitle>
+            <DialogDescription>Detalhe da mensagem recebida e status de leitura.</DialogDescription>
+          </DialogHeader>
+
+          {selectedNotification ? (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-4">
+                <p className="text-sm font-medium text-red-100">{selectedNotification.text}</p>
+              </div>
+
+              <div className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm text-muted-foreground">
+                <span>Data</span>
+                <span>{selectedNotification.timestamp || new Date(selectedNotification.createdAt ?? Date.now()).toLocaleString("pt-BR")}</span>
+              </div>
+
+              <p className="text-sm text-muted-foreground">
+                Esta mensagem foi marcada como lida ao abrir o detalhe e saiu da lista de alertas pendentes.
+              </p>
+            </div>
+          ) : null}
+
+          <DialogFooter>
+            <Button onClick={() => setSelectedNotification(null)}>Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={userDialogOpen}

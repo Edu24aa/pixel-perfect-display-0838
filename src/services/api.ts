@@ -105,14 +105,38 @@ export async function approveMilestone(id: string, clientName: string) {
   return res.json();
 }
 
-export async function requestMilestoneAdjustment(id: string, reason: string) {
+export async function requestMilestoneAdjustment(id: string, reason: string, clientName?: string) {
   const res = await fetch(`${API_BASE_URL}/milestones/${id}/request-change`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ reason }),
+    body: JSON.stringify({ reason, clientName }),
   });
 
   if (!res.ok) throw new Error("Falha ao solicitar ajuste");
+  return res.json();
+}
+
+export async function fetchNotifications(): Promise<AuditEntry[]> {
+  const res = await fetch(`${API_BASE_URL}/notifications`);
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.error ?? "Falha ao carregar notificações");
+  }
+
+  return res.json();
+}
+
+export async function markNotificationAsRead(id: string): Promise<AuditEntry> {
+  const res = await fetch(`${API_BASE_URL}/notifications/${id}/read`, {
+    method: "PATCH",
+  });
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.error ?? "Falha ao marcar notificação como lida");
+  }
+
   return res.json();
 }
 

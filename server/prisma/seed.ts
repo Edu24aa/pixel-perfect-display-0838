@@ -67,14 +67,22 @@ async function main() {
       {
         text: "Nordeste Varejo aprovou a etapa “Desenvolvimento de APIs e Integração Bancária”",
         timestamp: "18/Out às 14:32",
+        read: false,
       },
       {
         text: "Nordeste Varejo aprovou a etapa “Alinhamento e Arquitetura”",
         timestamp: "10/Out às 09:15",
+        read: false,
       },
       {
         text: "Equipe de TI marcou “Homologação do Fluxo de Checkout” como pronto para homologação",
         timestamp: "19/Out às 17:04",
+        read: false,
+      },
+      {
+        text: "Cliente Nordeste Varejo S.A. sugeriu um ajuste na etapa “Homologação do Fluxo de Checkout”",
+        timestamp: "Hoje às 10:12",
+        read: false,
       },
     ],
   });
