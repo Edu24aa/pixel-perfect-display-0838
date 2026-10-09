@@ -1,12 +1,26 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Aperture, ArrowLeft, Bell, LogOut, ShieldCheck } from "lucide-react";
+import { Aperture, Bell, LogOut, ShieldCheck } from "lucide-react";
+import { toast } from "sonner";
 
 import { AdminView } from "@/components/clientlens/AdminView";
 import { ClientView } from "@/components/clientlens/ClientView";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { clearManagerSession, getManagerSession, isManagerAuthenticated } from "@/lib/auth";
+import {
+  clearManagerSession,
+  formatUserRoleLabel,
+  getManagerSession,
+  isInternalUserRole,
+  type ManagerSession,
+} from "@/lib/auth";
 import {
   initialAudit,
   initialMilestones,
@@ -18,10 +32,17 @@ import {
 } from "@/lib/clientlens-data";
 import {
   approveMilestone,
+  createMilestone,
+  createProject,
+  deleteMilestone,
+  deleteProject,
   fetchNotifications,
+  fetchProjects,
   markNotificationAsRead,
   requestMilestoneAdjustment,
   trackProject,
+  updateClientProfile,
+  updateMilestone,
   updateMilestoneStatus,
 } from "@/services/api";
 
@@ -44,11 +65,16 @@ function stamp() {
 function TrackingPage() {
   const { code } = Route.useSearch();
   const navigate = useNavigate();
-  const isManager = isManagerAuthenticated();
-  const session = useMemo(() => getManagerSession(), []);
+  const [session, setSession] = useState<ManagerSession | null>(null);
+  const isManager = Boolean(session && isInternalUserRole(session.role));
 
   const [view, setView] = useState<"client" | "admin">("client");
-  const [projectData, setProjectData] = useState(defaultProject);
+  const [projectData, setProjectData] = useState({
+    ...defaultProject,
+    clientEmail: defaultProject.clientEmail ?? "",
+    clientPhone: defaultProject.clientPhone ?? "",
+  });
+  const [projects, setProjects] = useState<Array<{ id: string; name: string; client: string; dueLabel: string; accessCode?: string; progress?: number }>>([]);
   const [milestones, setMilestones] = useState<Milestone[]>(initialMilestones);
   const [audit, setAudit] = useState<AuditEntry[]>(initialAudit);
   const [notifications, setNotifications] = useState<AuditEntry[]>([]);
@@ -61,8 +87,11 @@ function TrackingPage() {
     const nextProject = data.project ?? defaultProject;
 
     setProjectData({
+      id: nextProject.id ?? defaultProject.id,
       name: nextProject.name ?? defaultProject.name,
       client: nextProject.client ?? defaultProject.client,
+      clientEmail: nextProject.clientEmail ?? null,
+      clientPhone: nextProject.clientPhone ?? null,
       dueLabel: nextProject.dueLabel ?? defaultProject.dueLabel,
       overallStatus: nextProject.overallStatus ?? defaultProject.overallStatus,
       accessCode: nextProject.accessCode ?? code ?? defaultProject.accessCode ?? "",
@@ -86,13 +115,39 @@ function TrackingPage() {
       applyProjectSnapshot(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Projeto não encontrado");
-      setProjectData(defaultProject);
+      setProjectData({ ...defaultProject, clientEmail: defaultProject.clientEmail ?? "", clientPhone: defaultProject.clientPhone ?? "" });
       setMilestones(initialMilestones);
       setAudit(initialAudit);
     } finally {
       setIsLoading(false);
     }
   };
+
+  const loadProjectList = async () => {
+    try {
+      const nextProjects = await fetchProjects();
+      setProjects(
+        nextProjects.map((project) => ({
+          id: project.id,
+          name: project.name,
+          client: project.client,
+          dueLabel: project.dueLabel,
+          accessCode: project.accessCode ?? "",
+          progress: Math.max(0, Math.min(100, Math.round((project.milestones?.filter((item) => item.status === "approved").length ?? 0) / Math.max(1, project.milestones?.length ?? 1) * 100))),
+        })),
+      );
+    } catch (err) {
+      console.error("Erro ao carregar lista de projetos:", err);
+    }
+  };
+
+  useEffect(() => {
+    setSession(getManagerSession());
+  }, []);
+
+  useEffect(() => {
+    void loadProjectList();
+  }, []);
 
   useEffect(() => {
     void loadProject(code);
@@ -101,6 +156,8 @@ function TrackingPage() {
   useEffect(() => {
     if (!isManager) {
       setView("client");
+    } else {
+      setView("admin");
     }
   }, [isManager]);
 
@@ -153,7 +210,7 @@ function TrackingPage() {
 
     try {
       await updateMilestoneStatus(id, status, nextDateLabel);
-      const data = await trackProject(code);
+      const data = await trackProject(code || projectData.accessCode || defaultProject.accessCode);
       applyProjectSnapshot(data);
 
       if (milestone) {
@@ -167,7 +224,7 @@ function TrackingPage() {
   const approve = async (id: string) => {
     try {
       await approveMilestone(id, projectData.client);
-      const data = await trackProject(code);
+      const data = await trackProject(code || projectData.accessCode || defaultProject.accessCode);
       applyProjectSnapshot(data);
     } catch (err) {
       console.error(err);
@@ -177,7 +234,7 @@ function TrackingPage() {
   const requestChange = async (id: string, feedback: string, clientName?: string) => {
     try {
       await requestMilestoneAdjustment(id, feedback, clientName);
-      const data = await trackProject(code);
+      const data = await trackProject(code || projectData.accessCode || defaultProject.accessCode);
       applyProjectSnapshot(data);
       void loadNotifications();
     } catch (err) {
@@ -185,16 +242,134 @@ function TrackingPage() {
     }
   };
 
-  const addMilestone = (title: string, dateLabel: string) => {
-    setMilestones((current) => [
-      ...current,
-      { id: crypto.randomUUID(), title, dateLabel, status: "pending", summary: dateLabel },
-    ]);
-    log(`Equipe de TI criou o marco “${title}”`);
+  const handleSaveProfile = async (payload: { name: string; email: string; phone: string }) => {
+    try {
+      await updateClientProfile({
+        code: projectData.accessCode || code,
+        name: payload.name,
+        email: payload.email,
+        phone: payload.phone,
+      });
+      const data = await trackProject(projectData.accessCode || code || defaultProject.accessCode);
+      applyProjectSnapshot(data);
+    } catch (err) {
+      console.error("Erro ao salvar perfil:", err);
+      window.alert(err instanceof Error ? err.message : "Não foi possível atualizar o perfil.");
+    }
+  };
+
+  const handleCreateMilestone = async (payload: { projectId: string; title: string; description?: string; dueDate?: string; status?: string }) => {
+    try {
+      await createMilestone(payload);
+      const data = await trackProject(projectData.accessCode || code || defaultProject.accessCode);
+      applyProjectSnapshot(data);
+      void loadProjectList();
+    } catch (err) {
+      console.error("Erro ao criar marco:", err);
+      throw err;
+    }
+  };
+
+  const handleUpdateMilestone = async (id: string, payload: { projectId?: string; title?: string; description?: string; dueDate?: string; status?: string }) => {
+    try {
+      await updateMilestone(id, payload);
+      const data = await trackProject(projectData.accessCode || code || defaultProject.accessCode);
+      applyProjectSnapshot(data);
+      void loadProjectList();
+    } catch (err) {
+      console.error("Erro ao atualizar marco:", err);
+      throw err;
+    }
+  };
+
+  const handleDeleteMilestone = async (id: string) => {
+    try {
+      await deleteMilestone(id);
+      const data = await trackProject(projectData.accessCode || code || defaultProject.accessCode);
+      applyProjectSnapshot(data);
+      void loadProjectList();
+    } catch (err) {
+      console.error("Erro ao excluir marco:", err);
+      throw err;
+    }
+  };
+
+  const handleProjectSelect = async (projectId: string) => {
+    const selected = projects.find(
+      (project) => project.id === projectId || project.accessCode === projectId,
+    );
+
+    const nextCode = selected?.accessCode ?? projectId;
+    if (!nextCode) {
+      return;
+    }
+
+    await navigate({ to: "/tracking", search: { code: nextCode } });
+    void loadProjectList();
+  };
+
+  const handleCreateProject = async (payload: {
+    name: string;
+    clientName: string;
+    clientEmail?: string;
+    clientPhone?: string;
+    accessCode?: string;
+    dueLabel?: string;
+    overallStatus?: string;
+  }) => {
+    try {
+      const project = await createProject({
+        name: payload.name,
+        clientName: payload.clientName,
+        clientEmail: payload.clientEmail ?? null,
+        clientPhone: payload.clientPhone ?? null,
+        accessCode: payload.accessCode,
+        dueLabel: payload.dueLabel,
+        overallStatus: payload.overallStatus,
+      });
+
+      await loadProjectList();
+      if (project.accessCode) {
+        await navigate({ to: "/tracking", search: { code: project.accessCode } });
+      }
+
+      toast.success(`Projeto "${project.name}" criado com sucesso.`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Falha ao criar projeto";
+      toast.error(message);
+      throw err;
+    }
+  };
+
+  const handleDeleteProject = async (projectId: string) => {
+    const target = projects.find((item) => item.id === projectId) ?? projectData;
+    if (!target?.name) {
+      return;
+    }
+
+    try {
+      await deleteProject(projectId);
+      const remainingProjects = projects.filter((item) => item.id !== projectId);
+
+      if (remainingProjects.length > 0) {
+        const nextProject = remainingProjects[0];
+        await navigate({ to: "/tracking", search: { code: nextProject.accessCode ?? nextProject.id } });
+      } else {
+        await navigate({ to: "/" });
+      }
+
+      await loadProjectList();
+      toast.success(`Projeto "${target.name}" foi excluído.`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Falha ao excluir o projeto";
+      toast.error(message);
+      throw err;
+    }
   };
 
   const handleLogout = () => {
     clearManagerSession();
+    setSession(null);
     void navigate({ to: "/login" });
   };
 
@@ -235,6 +410,25 @@ function TrackingPage() {
           <div className="flex items-center gap-3">
             {isManager ? (
               <>
+                <div className="hidden items-center gap-2 rounded-full border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs text-slate-200 md:flex">
+                  <span className="font-medium text-slate-50">{session?.name ?? "Usuário"}</span>
+                  <span className="text-slate-400">•</span>
+                  <span>{formatUserRoleLabel(session?.role)}</span>
+                </div>
+
+                <Select value={projectData.accessCode ?? ""} onValueChange={(next) => void handleProjectSelect(next)}>
+                  <SelectTrigger className="w-[220px] border-slate-700 bg-slate-800 text-slate-100">
+                    <SelectValue placeholder="Projeto ativo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {projects.map((projectItem) => (
+                      <SelectItem key={projectItem.id} value={projectItem.accessCode ?? projectItem.id}>
+                        {projectItem.name} · {projectItem.client}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
                 <Tabs value={view} onValueChange={(next) => setView(next as "client" | "admin")}>
                   <TabsList>
                     <TabsTrigger value="client">Área do Cliente</TabsTrigger>
@@ -280,22 +474,28 @@ function TrackingPage() {
         ) : null}
 
         {isLoading ? (
-          <div className="flex min-h-[320px] items-center justify-center rounded-2xl border border-slate-800 bg-slate-900/60 text-slate-300">
+          <div className="flex min-h-80 items-center justify-center rounded-2xl border border-slate-800 bg-slate-900/60 text-slate-300">
             Carregando projeto...
           </div>
         ) : (
           <>
             {view === "client" || !isManager ? (
-              <ClientView project={projectData} milestones={milestones} onApprove={approve} onRequestChange={requestChange} />
+              <ClientView project={projectData} milestones={milestones} onApprove={approve} onRequestChange={requestChange} onSaveProfile={handleSaveProfile} />
             ) : (
               <AdminView
                 project={projectData}
                 milestones={milestones}
                 audit={audit}
                 notifications={notifications}
+                projectList={projects}
                 onMarkNotificationRead={handleMarkNotificationRead}
                 onStatusChange={setStatus}
-                onAddMilestone={addMilestone}
+                onProjectSelect={handleProjectSelect}
+                onCreateProject={handleCreateProject}
+                onCreateMilestone={handleCreateMilestone}
+                onUpdateMilestone={handleUpdateMilestone}
+                onDeleteMilestone={handleDeleteMilestone}
+                onDeleteProject={handleDeleteProject}
               />
             )}
           </>

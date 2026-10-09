@@ -4,7 +4,7 @@ import { ArrowLeft, ShieldCheck } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { getManagerSession, saveManagerSession } from "@/lib/auth";
+import { getManagerSession, isInternalUserRole, saveManagerSession } from "@/lib/auth";
 import { loginManager } from "@/services/api";
 
 export const Route = createFileRoute("/login")({
@@ -20,7 +20,7 @@ function LoginPage() {
 
   useEffect(() => {
     const session = getManagerSession();
-    if (session) {
+    if (session && isInternalUserRole(session.role)) {
       void navigate({ to: "/tracking", search: { code: "NF-2024-001" } });
     }
   }, [navigate]);
@@ -39,7 +39,13 @@ function LoginPage() {
       }
 
       saveManagerSession(response.user);
-      void navigate({ to: "/tracking", search: { code: "NF-2024-001" } });
+      const nextRole = response.user.role ?? "MANAGER";
+      if (isInternalUserRole(nextRole)) {
+        void navigate({ to: "/tracking", search: { code: "NF-2024-001" } });
+        return;
+      }
+
+      setError("Este usuário não possui acesso ao painel interno.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Credenciais inválidas");
     } finally {

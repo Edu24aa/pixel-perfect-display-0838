@@ -7,6 +7,7 @@ export type Milestone = {
   dateLabel: string;
   summary: string;
   demoUrl?: string;
+  projectId?: string;
 };
 
 export type AuditEntry = {
@@ -45,8 +46,11 @@ export const statusOrder: MilestoneStatus[] = [
 ];
 
 export const project = {
+  id: "default-project",
   name: "Migração de Gateway de Pagamento v2",
   client: "Nordeste Varejo S.A.",
+  clientEmail: "financeiro@nordestevarejo.com.br",
+  clientPhone: "+55 81 99999-0000",
   dueLabel: "24 de Outubro",
   overallStatus: "Em Homologação",
   accessCode: "NF-2024-001",

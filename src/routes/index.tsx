@@ -1,9 +1,16 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Aperture, ArrowRight, Search } from "lucide-react";
+import { Aperture, ArrowRight, LogOut, Search, ShieldCheck } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  clearManagerSession,
+  formatUserRoleLabel,
+  getManagerSession,
+  isInternalUserRole,
+  type ManagerSession,
+} from "@/lib/auth";
 import { trackProject } from "@/services/api";
 
 const title = "ClientLens — Acompanhe suas entregas de software";
@@ -24,9 +31,20 @@ export const Route = createFileRoute("/")({
 
 function Index() {
   const navigate = useNavigate();
+  const [session, setSession] = useState<ManagerSession | null>(null);
   const [code, setCode] = useState("NF-2024-001");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    setSession(getManagerSession());
+  }, []);
+
+  const handleLogout = () => {
+    clearManagerSession();
+    setSession(null);
+    void navigate({ to: "/login" });
+  };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -65,11 +83,40 @@ function Index() {
           </div>
         </div>
 
-        <Link to="/login">
-          <Button variant="outline" className="border-slate-700 bg-slate-900 text-slate-100 hover:bg-slate-800">
-            Acesso Gestor / TI
-          </Button>
-        </Link>
+        {session && isInternalUserRole(session.role) ? (
+          <div className="flex items-center gap-3">
+            <div className="rounded-full border border-slate-700 bg-slate-800 px-3 py-1.5 text-right text-sm text-slate-100">
+              <div className="font-medium">{session.name}</div>
+              <div className="text-[10px] uppercase tracking-[0.18em] text-slate-400">
+                {formatUserRoleLabel(session.role)}
+              </div>
+            </div>
+
+            <Button
+              variant="outline"
+              className="border-slate-700 bg-slate-900 text-slate-100 hover:bg-slate-800"
+              onClick={() => void navigate({ to: "/tracking", search: { code: "NF-2024-001" } })}
+            >
+              <ShieldCheck className="mr-2 size-4" />
+              Ir para Painel Interno
+            </Button>
+
+            <Button
+              variant="outline"
+              className="border-slate-700 bg-slate-900 text-slate-100 hover:bg-slate-800"
+              onClick={handleLogout}
+            >
+              <LogOut className="mr-2 size-4" />
+              Sair / Encerrar Sessão
+            </Button>
+          </div>
+        ) : (
+          <Link to="/login">
+            <Button variant="outline" className="border-slate-700 bg-slate-900 text-slate-100 hover:bg-slate-800">
+              Acesso Gestor / TI
+            </Button>
+          </Link>
+        )}
       </header>
 
       <main className="mx-auto flex min-h-[calc(100vh-88px)] max-w-5xl items-center justify-center">

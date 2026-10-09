@@ -11,6 +11,8 @@ model Project {
   id            String      @id @default(uuid())
   name          String
   client        String
+  clientEmail   String?
+  clientPhone   String?
   dueLabel      String
   overallStatus String      @default("Em Homologação")
   accessCode    String      @unique @default("NF-2024-001")

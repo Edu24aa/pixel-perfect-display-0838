@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowUpRight,
   Check,
@@ -7,6 +7,7 @@ import {
   FileText,
   MessageSquare,
   Paperclip,
+  Pencil,
   ShieldCheck,
 } from "lucide-react";
 
@@ -19,6 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -34,13 +36,17 @@ type Props = {
     client: string;
     dueLabel: string;
     overallStatus: string;
+    accessCode?: string;
+    clientEmail?: string | null;
+    clientPhone?: string | null;
   };
   milestones: Milestone[];
   onApprove: (id: string) => void;
   onRequestChange: (id: string, feedback: string, clientName?: string) => void;
+  onSaveProfile?: (payload: { name: string; email: string; phone: string }) => Promise<void> | void;
 };
 
-export function ClientView({ project, milestones, onApprove, onRequestChange }: Props) {
+export function ClientView({ project, milestones, onApprove, onRequestChange, onSaveProfile }: Props) {
   const list = Array.isArray(milestones) ? milestones : [];
   const { done, total, percent: progressPercentage } = progressFor(list);
   const [openId, setOpenId] = useState<string | null>(
@@ -51,6 +57,12 @@ export function ClientView({ project, milestones, onApprove, onRequestChange }: 
   const [adjustFor, setAdjustFor] = useState<Milestone | null>(null);
   const [feedback, setFeedback] = useState("");
   const [attached, setAttached] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [profileForm, setProfileForm] = useState({
+    name: project.client,
+    email: project.clientEmail ?? "",
+    phone: project.clientPhone ?? "",
+  });
 
   const now = new Date().toLocaleString("pt-BR", {
     day: "2-digit",
@@ -58,6 +70,14 @@ export function ClientView({ project, milestones, onApprove, onRequestChange }: 
     hour: "2-digit",
     minute: "2-digit",
   });
+
+  useEffect(() => {
+    setProfileForm({
+      name: project.client,
+      email: project.clientEmail ?? "",
+      phone: project.clientPhone ?? "",
+    });
+  }, [project.client, project.clientEmail, project.clientPhone]);
 
   return (
     <div className="space-y-8">
@@ -73,10 +93,17 @@ export function ClientView({ project, milestones, onApprove, onRequestChange }: 
               Previsão de entrega: {project.dueLabel}
             </p>
           </div>
-          <StatusPill
-            status={progressPercentage === 100 ? "approved" : "review"}
-            className="px-3 py-1 text-sm"
-          />
+
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setProfileOpen(true)}>
+              <Pencil className="mr-2 size-4" />
+              Meu Perfil
+            </Button>
+            <StatusPill
+              status={progressPercentage === 100 ? "approved" : "review"}
+              className="px-3 py-1 text-sm"
+            />
+          </div>
         </div>
 
         <div className="mt-6">
@@ -97,8 +124,8 @@ export function ClientView({ project, milestones, onApprove, onRequestChange }: 
           Linha do tempo
         </h2>
         <ol className="relative space-y-3 pl-8">
-          <span className="absolute left-[11px] top-2 bottom-2 w-px bg-border" aria-hidden />
-          {milestones.map((m) => {
+          <span className="absolute left-2.75 top-2 bottom-2 w-px bg-border" aria-hidden />
+          {list.map((m) => {
             const isOpen = openId === m.id;
             const isReview = m.status === "review";
             const isApproved = m.status === "approved";
@@ -158,7 +185,6 @@ export function ClientView({ project, milestones, onApprove, onRequestChange }: 
                     <div className="border-t border-border px-5 py-4">
                       <p className="text-sm leading-relaxed text-foreground/80">{m.summary}</p>
 
-                      {/* Bloco de Auditoria / Termo de Aceite para etapas Aprovadas */}
                       {isApproved && (
                         <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-emerald-900/60 bg-emerald-950/20 p-3.5">
                           <div className="space-y-1 text-left">
@@ -333,6 +359,54 @@ export function ClientView({ project, milestones, onApprove, onRequestChange }: 
               }}
             >
               Enviar solicitação
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={profileOpen} onOpenChange={(openState) => setProfileOpen(openState)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar meus dados</DialogTitle>
+            <DialogDescription>
+              Atualize nome, e-mail e telefone para receber informações do projeto.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <Input
+              value={profileForm.name}
+              onChange={(event) => setProfileForm((current) => ({ ...current, name: event.target.value }))}
+              placeholder="Nome do contato"
+            />
+            <Input
+              type="email"
+              value={profileForm.email}
+              onChange={(event) => setProfileForm((current) => ({ ...current, email: event.target.value }))}
+              placeholder="E-mail"
+            />
+            <Input
+              value={profileForm.phone}
+              onChange={(event) => setProfileForm((current) => ({ ...current, phone: event.target.value }))}
+              placeholder="Telefone / WhatsApp"
+            />
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setProfileOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => {
+                void onSaveProfile?.({
+                  name: profileForm.name.trim() || project.client,
+                  email: profileForm.email.trim(),
+                  phone: profileForm.phone.trim(),
+                });
+                setProfileOpen(false);
+              }}
+            >
+              Salvar perfil
             </Button>
           </DialogFooter>
         </DialogContent>

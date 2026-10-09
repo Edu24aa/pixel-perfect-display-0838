@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Bell, History, Plus, UserPlus } from "lucide-react";
+import { Bell, History, Pencil, Plus, Trash2, UserPlus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,7 +29,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  adminProjects,
   progressFor,
   statusMeta,
   statusOrder,
@@ -37,11 +36,30 @@ import {
   type Milestone,
   type MilestoneStatus,
 } from "@/lib/clientlens-data";
-import { createUser, fetchUsers, type ManagerUser } from "@/services/api";
+import {
+  createMilestone,
+  createUser,
+  deleteMilestone,
+  deleteUser,
+  fetchUsers,
+  updateMilestone,
+  updateUser,
+  type ManagerUser,
+} from "@/services/api";
 import { StatusPill } from "./StatusPill";
+
+type ProjectRow = {
+  id: string;
+  name: string;
+  client?: string;
+  dueLabel?: string;
+  accessCode?: string;
+  progress?: number;
+};
 
 type Props = {
   project: {
+    id?: string;
     name: string;
     client: string;
     dueLabel: string;
@@ -51,9 +69,23 @@ type Props = {
   milestones: Milestone[];
   audit: AuditEntry[];
   notifications: AuditEntry[];
+  projectList?: ProjectRow[];
   onMarkNotificationRead: (id: string) => Promise<void> | void;
   onStatusChange: (id: string, status: MilestoneStatus) => Promise<void> | void;
-  onAddMilestone: (title: string, dateLabel: string) => void;
+  onProjectSelect?: (projectId: string) => void;
+  onCreateProject?: (payload: {
+    name: string;
+    clientName: string;
+    clientEmail?: string;
+    clientPhone?: string;
+    accessCode?: string;
+    dueLabel?: string;
+    overallStatus?: string;
+  }) => Promise<void> | void;
+  onCreateMilestone?: (payload: { projectId: string; title: string; description?: string; dueDate?: string; status?: string }) => Promise<void> | void;
+  onUpdateMilestone?: (id: string, payload: { projectId?: string; title?: string; description?: string; dueDate?: string; status?: string }) => Promise<void> | void;
+  onDeleteMilestone?: (id: string) => Promise<void> | void;
+  onDeleteProject?: (id: string) => Promise<void> | void;
 };
 
 export function AdminView({
@@ -61,26 +93,51 @@ export function AdminView({
   milestones,
   audit,
   notifications,
+  projectList = [],
   onMarkNotificationRead,
   onStatusChange,
-  onAddMilestone,
+  onProjectSelect,
+  onCreateProject,
+  onCreateMilestone,
+  onUpdateMilestone,
+  onDeleteMilestone,
+  onDeleteProject,
 }: Props) {
   const [open, setOpen] = useState(false);
+  const [projectDialogOpen, setProjectDialogOpen] = useState(false);
   const [userDialogOpen, setUserDialogOpen] = useState(false);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
-  const [title, setTitle] = useState("");
-  const [dateLabel, setDateLabel] = useState("");
   const [shareClientName, setShareClientName] = useState(project.client);
   const [sharePhone, setSharePhone] = useState("");
   const [shareEmail, setShareEmail] = useState("");
   const [copyFeedback, setCopyFeedback] = useState("");
   const [users, setUsers] = useState<ManagerUser[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [userEditTarget, setUserEditTarget] = useState<ManagerUser | null>(null);
   const [userForm, setUserForm] = useState({
     name: "",
     email: "",
     password: "",
     role: "MANAGER",
+  });
+  const [userError, setUserError] = useState("");
+  const [userSuccess, setUserSuccess] = useState("");
+  const [selectedNotification, setSelectedNotification] = useState<AuditEntry | null>(null);
+  const [projectForm, setProjectForm] = useState({
+    name: "",
+    clientName: "",
+    clientEmail: "",
+    clientPhone: "",
+    accessCode: "",
+    dueLabel: "",
+  });
+  const [milestoneEditor, setMilestoneEditor] = useState<Milestone | null>(null);
+  const [milestoneForm, setMilestoneForm] = useState({
+    projectId: project.id ?? projectList[0]?.id ?? "",
+    title: "",
+    description: "",
+    dueDate: "",
+    status: "pending" as MilestoneStatus,
   });
 
   const formatRoleLabel = (role: string) => {
@@ -96,16 +153,22 @@ export function AdminView({
         return "Gestor(a)";
     }
   };
-  const [userError, setUserError] = useState("");
-  const [userSuccess, setUserSuccess] = useState("");
-  const [selectedNotification, setSelectedNotification] = useState<AuditEntry | null>(null);
+
   const current = progressFor(milestones);
   const unreadNotifications = notifications.filter((item) => !item.read);
+  const projectRows = projectList.length > 0 ? projectList : [{ id: project.id ?? "default", name: project.name, client: project.client, dueLabel: project.dueLabel, accessCode: project.accessCode }];
+
+  useEffect(() => {
+    if (project.id && !milestoneForm.projectId) {
+      setMilestoneForm((currentForm) => ({ ...currentForm, projectId: project.id ?? currentForm.projectId }));
+    }
+  }, [project.id]);
 
   const directAccessLink =
     typeof window !== "undefined"
       ? `${window.location.origin}/?code=${encodeURIComponent(project.accessCode ?? "")}`
       : `http://localhost:3000/?code=${encodeURIComponent(project.accessCode ?? "")}`;
+
   const shareMessage = [
     `Olá, ${shareClientName || "Cliente"}! Seu projeto ${project.name} já está disponível para acompanhamento no ClientLens.`,
     "",
@@ -130,29 +193,82 @@ export function AdminView({
     void loadUsers();
   }, []);
 
-  const handleCreateUser = async () => {
-    if (!userForm.name.trim() || !userForm.email.trim() || !userForm.password.trim()) {
-      setUserError("Preencha nome, e-mail e senha para cadastrar o gestor.");
+  const handleSaveUser = async () => {
+    if (!userForm.name.trim() || !userForm.email.trim()) {
+      setUserError("Nome e e-mail são obrigatórios.");
       setUserSuccess("");
       return;
     }
 
     try {
       setUserError("");
-      await createUser({
-        name: userForm.name.trim(),
-        email: userForm.email.trim(),
-        password: userForm.password,
-        role: userForm.role,
-      });
 
-      setUserSuccess("Gestor cadastrado com sucesso.");
+      if (userEditTarget) {
+        await updateUser(userEditTarget.id, {
+          name: userForm.name.trim(),
+          email: userForm.email.trim(),
+          role: userForm.role,
+        });
+        setUserSuccess("Usuário atualizado com sucesso.");
+      } else {
+        if (!userForm.password.trim()) {
+          setUserError("Informe a senha inicial do usuário.");
+          return;
+        }
+
+        await createUser({
+          name: userForm.name.trim(),
+          email: userForm.email.trim(),
+          password: userForm.password,
+          role: userForm.role,
+        });
+        setUserSuccess("Usuário cadastrado com sucesso.");
+      }
+
       setUserForm({ name: "", email: "", password: "", role: "MANAGER" });
+      setUserEditTarget(null);
       await loadUsers();
       setUserDialogOpen(false);
     } catch (error) {
       setUserSuccess("");
-      setUserError(error instanceof Error ? error.message : "Falha ao cadastrar gestor.");
+      setUserError(error instanceof Error ? error.message : "Falha ao salvar usuário.");
+    }
+  };
+
+  const handleDeleteUser = async (id: string) => {
+    if (!window.confirm("Deseja remover este usuário do sistema?")) {
+      return;
+    }
+
+    try {
+      await deleteUser(id);
+      await loadUsers();
+    } catch (error) {
+      console.error("Erro ao excluir usuário:", error);
+      window.alert(error instanceof Error ? error.message : "Não foi possível excluir o usuário.");
+    }
+  };
+
+  const handleCreateProject = async () => {
+    if (!projectForm.name.trim() || !projectForm.clientName.trim()) {
+      window.alert("Informe o nome do projeto e do cliente antes de cadastrar.");
+      return;
+    }
+
+    try {
+      await onCreateProject?.({
+        name: projectForm.name.trim(),
+        clientName: projectForm.clientName.trim(),
+        clientEmail: projectForm.clientEmail.trim() || undefined,
+        clientPhone: projectForm.clientPhone.trim() || undefined,
+        accessCode: projectForm.accessCode.trim() || undefined,
+        dueLabel: projectForm.dueLabel.trim() || undefined,
+      });
+
+      setProjectDialogOpen(false);
+      setProjectForm({ name: "", clientName: "", clientEmail: "", clientPhone: "", accessCode: "", dueLabel: "" });
+    } catch (error) {
+      console.error("Erro ao criar projeto:", error);
     }
   };
 
@@ -197,6 +313,45 @@ export function AdminView({
     await onMarkNotificationRead(notification.id);
   };
 
+  const handleSaveMilestone = async () => {
+    if (!milestoneForm.title.trim() || !milestoneForm.projectId) {
+      return;
+    }
+
+    const payload = {
+      projectId: milestoneForm.projectId,
+      title: milestoneForm.title.trim(),
+      description: milestoneForm.description.trim() || milestoneForm.title.trim(),
+      dueDate: milestoneForm.dueDate.trim() || "Sem data definida",
+      status: milestoneForm.status,
+    };
+
+    try {
+      if (milestoneEditor) {
+        await onUpdateMilestone?.(milestoneEditor.id, payload);
+      } else {
+        await onCreateMilestone?.(payload);
+      }
+      setOpen(false);
+      setMilestoneForm({ projectId: project.id ?? projectRows[0].id, title: "", description: "", dueDate: "", status: "pending" });
+      setMilestoneEditor(null);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Não foi possível salvar o marco.");
+    }
+  };
+
+  const handleDeleteMilestone = async (id: string) => {
+    if (!window.confirm("Deseja excluir este marco de entrega?")) {
+      return;
+    }
+
+    try {
+      await onDeleteMilestone?.(id);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Não foi possível excluir este marco.");
+    }
+  };
+
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -218,6 +373,7 @@ export function AdminView({
             }}
             className="inline-flex items-center justify-center rounded-md bg-cyan-500 px-4 py-2 text-sm font-medium text-slate-950 shadow-sm transition-colors hover:bg-cyan-400"
           >
+            <Bell className="mr-2 size-4" />
             Enviar Acesso ao Cliente
           </button>
 
@@ -238,8 +394,23 @@ export function AdminView({
           <Button variant="outline" onClick={() => setUserDialogOpen(true)}>
             <UserPlus className="mr-2 size-4" /> Novo Usuário
           </Button>
+          <Button variant="outline" onClick={() => setProjectDialogOpen(true)}>
+            <Plus className="mr-2 size-4" /> Novo Projeto
+          </Button>
+          {project.id ? (
+            <Button
+              variant="destructive"
+              onClick={async () => {
+                if (!project.id || !onDeleteProject) return;
+                if (!window.confirm(`Deseja realmente excluir o projeto "${project.name}"?`)) return;
+                await onDeleteProject(project.id);
+              }}
+            >
+              <Trash2 className="mr-2 size-4" /> Excluir Projeto
+            </Button>
+          ) : null}
           <Button onClick={() => setOpen(true)}>
-            <Plus /> Novo Marco de Entrega
+            <Plus className="mr-2 size-4" /> Novo Marco de Entrega
           </Button>
         </div>
       </div>
@@ -256,20 +427,18 @@ export function AdminView({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {adminProjects.map((p) => {
-              const percent = p.name === project.name ? current.percent : p.progress;
+            {projectRows.map((p) => {
+              const percent = p.progress ?? Math.max(0, current.percent);
               return (
-                <TableRow key={p.id}>
+                <TableRow key={p.id} className={p.id === project.id ? "bg-slate-800/50" : "cursor-pointer hover:bg-slate-900/60"} onClick={() => onProjectSelect?.(p.id)}>
                   <TableCell className="font-medium text-foreground">{p.name}</TableCell>
-                  <TableCell className="text-muted-foreground">{p.client}</TableCell>
-                  <TableCell className="text-muted-foreground">{p.owner}</TableCell>
-                  <TableCell className="text-muted-foreground">{p.due}</TableCell>
+                  <TableCell className="text-muted-foreground">{p.client ?? project.client}</TableCell>
+                  <TableCell className="text-muted-foreground">{p.accessCode ?? project.accessCode}</TableCell>
+                  <TableCell className="text-muted-foreground">{p.dueLabel ?? project.dueLabel}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <Progress value={percent} className="h-1.5" />
-                      <span className="w-10 text-right text-xs text-muted-foreground">
-                        {percent}%
-                      </span>
+                      <span className="w-10 text-right text-xs text-muted-foreground">{percent}%</span>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -283,20 +452,17 @@ export function AdminView({
         <h2 className="text-sm font-medium uppercase tracking-widest text-muted-foreground">
           Etapas — {project.name}
         </h2>
-        <ul className="mt-4 divide-y divide-border">
+        <ul className="mt-4 space-y-3">
           {milestones.map((m) => (
-            <li key={m.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+            <li key={m.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border p-3">
               <div>
                 <p className="font-medium text-foreground">{m.title}</p>
                 <p className="text-sm text-muted-foreground">{m.dateLabel}</p>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-2">
                 <StatusPill status={m.status} />
-                <Select
-                  value={m.status}
-                  onValueChange={(v) => onStatusChange(m.id, v as MilestoneStatus)}
-                >
-                  <SelectTrigger className="w-56">
+                <Select value={m.status} onValueChange={(v) => onStatusChange(m.id, v as MilestoneStatus)}>
+                  <SelectTrigger className="w-52">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -307,6 +473,26 @@ export function AdminView({
                     ))}
                   </SelectContent>
                 </Select>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    setMilestoneEditor(m);
+                    setMilestoneForm({
+                      projectId: m.projectId ?? project.id ?? projectRows[0].id,
+                      title: m.title,
+                      description: m.summary,
+                      dueDate: m.dateLabel,
+                      status: m.status,
+                    });
+                    setOpen(true);
+                  }}
+                >
+                  <Pencil className="size-4" />
+                </Button>
+                <Button variant="ghost" size="icon" onClick={() => void handleDeleteMilestone(m.id)}>
+                  <Trash2 className="size-4" />
+                </Button>
               </div>
             </li>
           ))}
@@ -333,7 +519,7 @@ export function AdminView({
       <section className="rounded-xl border border-border bg-card p-6 shadow-sm">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-sm font-medium uppercase tracking-widest text-muted-foreground">
-            Sugestões e Ajustes dos Clientes
+            Sugestões e Ajustes Dos Clientes
           </h2>
           {unreadNotifications.length > 0 ? (
             <span className="rounded-full border border-red-500/40 bg-red-500/10 px-2 py-1 text-xs font-medium text-red-200">
@@ -402,6 +588,7 @@ export function AdminView({
                   <TableHead>E-mail</TableHead>
                   <TableHead>Perfil</TableHead>
                   <TableHead>Criação</TableHead>
+                  <TableHead className="w-28 text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -412,6 +599,24 @@ export function AdminView({
                     <TableCell className="text-muted-foreground">{formatRoleLabel(user.role)}</TableCell>
                     <TableCell className="text-muted-foreground">
                       {new Date(user.createdAt).toLocaleDateString("pt-BR")}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            setUserEditTarget(user);
+                            setUserForm({ name: user.name, email: user.email, password: "", role: user.role });
+                            setUserDialogOpen(true);
+                          }}
+                        >
+                          <Pencil className="size-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => void handleDeleteUser(user.id)}>
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -452,10 +657,69 @@ export function AdminView({
       </Dialog>
 
       <Dialog
+        open={projectDialogOpen}
+        onOpenChange={(openState) => {
+          setProjectDialogOpen(openState);
+          if (!openState) {
+            setProjectForm({ name: "", clientName: "", clientEmail: "", clientPhone: "", accessCode: "", dueLabel: "" });
+          }
+        }}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Novo projeto</DialogTitle>
+            <DialogDescription>Cadastre um novo projeto e associe o cliente responsável.</DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            <Input
+              value={projectForm.name}
+              onChange={(event) => setProjectForm((current) => ({ ...current, name: event.target.value }))}
+              placeholder="Nome do Projeto"
+            />
+            <Input
+              value={projectForm.clientName}
+              onChange={(event) => setProjectForm((current) => ({ ...current, clientName: event.target.value }))}
+              placeholder="Nome do Cliente"
+            />
+            <Input
+              type="email"
+              value={projectForm.clientEmail}
+              onChange={(event) => setProjectForm((current) => ({ ...current, clientEmail: event.target.value }))}
+              placeholder="E-mail do cliente"
+            />
+            <Input
+              value={projectForm.clientPhone}
+              onChange={(event) => setProjectForm((current) => ({ ...current, clientPhone: event.target.value }))}
+              placeholder="Telefone / WhatsApp"
+            />
+            <Input
+              value={projectForm.accessCode}
+              onChange={(event) => setProjectForm((current) => ({ ...current, accessCode: event.target.value }))}
+              placeholder="Código / NF (opcional)"
+            />
+            <Input
+              value={projectForm.dueLabel}
+              onChange={(event) => setProjectForm((current) => ({ ...current, dueLabel: event.target.value }))}
+              placeholder="Previsão de entrega"
+            />
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setProjectDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={() => void handleCreateProject()}>Salvar projeto</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
         open={userDialogOpen}
         onOpenChange={(openState) => {
           setUserDialogOpen(openState);
           if (!openState) {
+            setUserEditTarget(null);
             setUserForm({ name: "", email: "", password: "", role: "MANAGER" });
             setUserError("");
             setUserSuccess("");
@@ -464,9 +728,9 @@ export function AdminView({
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Novo usuário / Gestor</DialogTitle>
+            <DialogTitle>{userEditTarget ? "Editar usuário" : "Novo usuário / Gestor"}</DialogTitle>
             <DialogDescription>
-              Cadastre um novo gestor para acessar o painel administrativo.
+              {userEditTarget ? "Atualize as informações de acesso do usuário." : "Cadastre um novo gestor para acessar o painel administrativo."}
             </DialogDescription>
           </DialogHeader>
 
@@ -482,12 +746,14 @@ export function AdminView({
               onChange={(event) => setUserForm((current) => ({ ...current, email: event.target.value }))}
               placeholder="E-mail corporativo"
             />
-            <Input
-              type="password"
-              value={userForm.password}
-              onChange={(event) => setUserForm((current) => ({ ...current, password: event.target.value }))}
-              placeholder="Senha inicial"
-            />
+            {!userEditTarget ? (
+              <Input
+                type="password"
+                value={userForm.password}
+                onChange={(event) => setUserForm((current) => ({ ...current, password: event.target.value }))}
+                placeholder="Senha inicial"
+              />
+            ) : null}
             <Select
               value={userForm.role}
               onValueChange={(value) => setUserForm((current) => ({ ...current, role: value }))}
@@ -519,7 +785,9 @@ export function AdminView({
             <Button variant="outline" onClick={() => setUserDialogOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={() => void handleCreateUser()}>Cadastrar Gestor</Button>
+            <Button onClick={() => void handleSaveUser()}>
+              {userEditTarget ? "Salvar alterações" : "Cadastrar Gestor"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -552,27 +820,18 @@ export function AdminView({
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground">Telefone / WhatsApp</label>
-                <Input
-                  value={sharePhone}
-                  onChange={(e) => setSharePhone(e.target.value)}
-                  placeholder="11999998888"
-                />
+                <Input value={sharePhone} onChange={(e) => setSharePhone(e.target.value)} placeholder="11999998888" />
               </div>
             </div>
 
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">E-mail do Cliente</label>
-              <Input
-                type="email"
-                value={shareEmail}
-                onChange={(e) => setShareEmail(e.target.value)}
-                placeholder="cliente@empresa.com"
-              />
+              <Input type="email" value={shareEmail} onChange={(e) => setShareEmail(e.target.value)} placeholder="cliente@empresa.com" />
             </div>
 
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Prévia da mensagem</label>
-              <Textarea value={shareMessage} readOnly className="min-h-[180px] resize-none font-mono text-xs" />
+              <Textarea value={shareMessage} readOnly className="min-h-45 resize-none font-mono text-xs" />
             </div>
 
             {copyFeedback ? (
@@ -583,12 +842,8 @@ export function AdminView({
           </div>
 
           <DialogFooter className="flex-col gap-2 sm:flex-row">
-            <Button variant="outline" onClick={handleCopyLink}>
-              Copiar Link de Acompanhamento
-            </Button>
-            <Button variant="secondary" onClick={handleSendWhatsApp}>
-              Enviar via WhatsApp
-            </Button>
+            <Button variant="outline" onClick={handleCopyLink}>Copiar Link de Acompanhamento</Button>
+            <Button variant="secondary" onClick={handleSendWhatsApp}>Enviar via WhatsApp</Button>
             <Button onClick={handleSendEmail}>Enviar via E-mail</Button>
           </DialogFooter>
         </DialogContent>
@@ -599,44 +854,59 @@ export function AdminView({
         onOpenChange={(o) => {
           setOpen(o);
           if (!o) {
-            setTitle("");
-            setDateLabel("");
+            setMilestoneEditor(null);
+            setMilestoneForm({
+              projectId: project.id ?? projectRows[0].id,
+              title: "",
+              description: "",
+              dueDate: "",
+              status: "pending",
+            });
           }
         }}
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Novo marco de entrega</DialogTitle>
+            <DialogTitle>{milestoneEditor ? "Editar marco de entrega" : "Novo marco de entrega"}</DialogTitle>
             <DialogDescription>
-              O cliente verá este marco na linha do tempo do projeto.
+              {milestoneEditor ? "Atualize os dados do marco selecionado." : "O cliente verá este marco na linha do tempo do projeto."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <Input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Título do marco"
-            />
-            <Input
-              value={dateLabel}
-              onChange={(e) => setDateLabel(e.target.value)}
-              placeholder="Previsão (ex.: Previsto para 30/Out)"
-            />
+            <Select value={milestoneForm.projectId} onValueChange={(value) => setMilestoneForm((current) => ({ ...current, projectId: value }))}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione o projeto" />
+              </SelectTrigger>
+              <SelectContent>
+                {projectRows.map((projectOption) => (
+                  <SelectItem key={projectOption.id} value={projectOption.id}>
+                    {projectOption.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input value={milestoneForm.title} onChange={(event) => setMilestoneForm((current) => ({ ...current, title: event.target.value }))} placeholder="Título do marco" />
+            <Textarea value={milestoneForm.description} onChange={(event) => setMilestoneForm((current) => ({ ...current, description: event.target.value }))} placeholder="Descrição do marco" className="min-h-28" />
+            <Input value={milestoneForm.dueDate} onChange={(event) => setMilestoneForm((current) => ({ ...current, dueDate: event.target.value }))} placeholder="Previsão (ex.: Previsto para 30/Out)" />
+            <Select value={milestoneForm.status} onValueChange={(value) => setMilestoneForm((current) => ({ ...current, status: value as MilestoneStatus }))}>
+              <SelectTrigger>
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                {statusOrder.map((statusValue) => (
+                  <SelectItem key={statusValue} value={statusValue}>
+                    {statusMeta[statusValue].label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>
               Cancelar
             </Button>
-            <Button
-              disabled={!title.trim()}
-              onClick={() => {
-                onAddMilestone(title.trim(), dateLabel.trim() || "Sem data definida");
-                setOpen(false);
-                setTitle("");
-                setDateLabel("");
-              }}
-            >
-              Criar marco
+            <Button disabled={!milestoneForm.title.trim()} onClick={() => void handleSaveMilestone()}>
+              {milestoneEditor ? "Salvar marco" : "Criar marco"}
             </Button>
           </DialogFooter>
         </DialogContent>
