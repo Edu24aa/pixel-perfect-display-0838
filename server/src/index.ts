@@ -4,9 +4,12 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 const app = express();
-const PORT = process.env.PORT || 3333;
+const PORT = Number(process.env.PORT) || 3333;
 
-app.use(cors());
+app.use(cors({
+  origin: true,
+  credentials: true,
+}));
 app.use(express.json());
 
 const normalizeRole = (role: string) => {
@@ -590,6 +593,6 @@ app.patch('/api/milestones/:id/status', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 Servidor ClientLens rodando em http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Servidor ClientLens rodando em http://0.0.0.0:${PORT}`);
 });
