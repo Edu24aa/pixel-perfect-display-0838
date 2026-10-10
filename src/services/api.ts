@@ -1,6 +1,6 @@
 import type { AuditEntry, Milestone } from "@/lib/clientlens-data";
 
-export const API_BASE_URL = "http://localhost:3333/api";
+export const API_BASE_URL = `${import.meta.env.VITE_API_URL || "https://pixel-perfect-display-0838.onrender.com"}/api`;
 
 export type ProjectApiResponse = {
   project: {
