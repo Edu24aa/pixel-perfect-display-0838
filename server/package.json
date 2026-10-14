@@ -5,6 +5,8 @@
   "main": "index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "build": "tsc --project tsconfig.json",
+    "start": "node dist/index.js",
     "seed": "tsx prisma/seed.ts"
   },
   "prisma": {
@@ -15,6 +17,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@google/genai": "^2.29.0",
     "@prisma/client": "^5.22.0",
     "cors": "^2.8.6",
     "dotenv": "^18.0.5",

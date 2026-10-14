@@ -1,6 +1,8 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import { PrismaClient } from '@prisma/client';
+import { chatHandler } from './routes/chat';
 
 const prisma = new PrismaClient();
 const app = express();
@@ -592,6 +594,8 @@ app.patch('/api/milestones/:id/status', async (req, res) => {
     return res.status(500).json({ error: 'Falha ao atualizar status' });
   }
 });
+
+app.post('/api/chat', chatHandler);
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Servidor ClientLens rodando em http://0.0.0.0:${PORT}`);
