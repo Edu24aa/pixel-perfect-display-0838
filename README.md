@@ -1,35 +1,97 @@
-# ClientLens 🔍🚀
-> Portal Inteligente de Rastreamento de Entregas e Homologação Contínua para Projetos de TI.
+# 🔍 ClientLens
 
-O **ClientLens** elimina o ruído de comunicação entre equipes de desenvolvimento e contratantes. Em vez de relatórios manuais ou quadros técnicos complexos (como Jira e GitHub), o sistema oferece uma interface estilo "rastreio de encomenda", dando ao cliente visibilidade clara do progresso da sua entrega e um canal formal de aprovação em um clique.
+> Plataforma inteligente para gestão, transparência e rastreamento de ordens de serviço e projetos em tempo real, com assistente virtual integrado com IA.
 
----
-
-## 🎯 O Problema que Resolvemos
-* **Ansiedade e Cobrança Contínua:** Clientes enviam e-mails e mensagens no WhatsApp perguntando *"Em que pé está minha demanda?"*.
-* **O Abismo Técnico:** O contratante não entende commits, branches ou termos de engenharia.
-* **Disputas de Escopo:** Aprovações de etapas ocorrem por mensagens soltas, gerando refações e desgastes no deploy final.
+🔗 **Acesse o projeto online:** [pixel-perfect-display-0838.vercel.app](https://pixel-perfect-display-0838.vercel.app)
 
 ---
 
-## ✨ Funcionalidades Principais
-* **Linha do Tempo Visual (Timeline Tracker):** Conversão automática de tarefas técnicas em marcos claros de entrega com porcentagem de conclusão global.
-* **Módulo de Homologação em 1 Clique:** Área para o cliente inspecionar a entrega com botões rápidos de **"Aprovar Etapa"** ou **"Solicitar Ajuste"** com apontamentos.
-* **Painel Administrativo da TI:** Controle ágil de status para a equipe de desenvolvimento avançar as fases do projeto.
-* **Audit Trail (Histórico Auditável):** Registro formal de data, hora e responsável por cada homologação realizada.
+## 📌 Sobre o Projeto
+
+O **ClientLens** foi desenvolvido para solucionar a falta de visibilidade e comunicação entre prestadores de serviço e clientes. A plataforma centraliza o acompanhamento de demandas e ordens de serviço em um único painel, permitindo que clientes monitorem o progresso em tempo real e tirem dúvidas instantaneamente através de um assistente de IA focado no ecossistema do sistema.
+
+---
+
+## ✨ Funcionalidades
+
+- **Gestão de Ordens de Serviço & Projetos:** Criação, edição e controle de status das demandas.
+- **Visão do Cliente (ClientView):** Área dedicada para acompanhamento transparente do progresso e etapas concluídas.
+- **Assistente Virtual Inteligente (IA):**
+  - Integração com a API do **Google Gemini** (`@google/genai`).
+  - *Guardrails* rigorosos via *System Instructions* para responder estritamente sobre a plataforma e o status dos projetos.
+- **Interface Moderna & Responsiva:** Design otimizado para desktop e dispositivos móveis.
 
 ---
 
 ## 🛠️ Tecnologias Utilizadas
-* **Front-end:** React, TypeScript, Vite
-* **Estilização & UI:** Tailwind CSS, Radix UI / shadcn/ui, Lucide Icons
-* **Integração:** Pronto para consumo de API RESTful
+
+### Frontend
+- **React** com **Vite**
+- **TypeScript**
+- **Tailwind CSS** / **Lucide Icons**
+- Deploy: **Vercel**
+
+### Backend
+- **Node.js** com **Express**
+- **TypeScript**
+- **Prisma ORM**
+- Deploy: **Render**
+
+### Banco de Dados & IA
+- **Neon Serverless PostgreSQL**
+- **Google Gemini API** (`gemini-2.5-flash`)
 
 ---
 
-## 🚀 Como Executar o Projeto Localmente
+## 🚀 Como Rodar Localmente
 
-1. **Clone o repositório:**
-   ```bash
-   git clone [https://github.com/Edu24aa/pixel-perfect-display-0838.git](https://github.com/Edu24aa/pixel-perfect-display-0838.git)
-   cd pixel-perfect-display-0838
+### Pré-requisitos
+- Node.js (v18+) instalado
+- Conta no [Neon](https://neon.tech/) (PostgreSQL)
+- Chave de API do [Google AI Studio](https://aistudio.google.com/)
+
+### 1. Clonar o Repositório
+```bash
+git clone [https://github.com/Edu24aa/pixel-perfect-display-0838.git](https://github.com/Edu24aa/pixel-perfect-display-0838.git)
+cd pixel-perfect-display-0838
+
+2. Configurar Variáveis de Ambiente
+Crie um arquivo .env na pasta do servidor (server/.env) com as seguintes chaves:
+
+Snippet de código
+DATABASE_URL="postgresql://usuario:senha@host/neondb?sslmode=require"
+GEMINI_API_KEY="sua_chave_do_gemini_aqui"
+PORT=3333
+
+3. Instalar Dependências e Iniciar
+Backend:
+Bash
+cd server
+npm install
+npx prisma generate
+npm run dev
+
+Frontend:
+Em outro terminal:
+Bash
+cd client # ou na raiz caso seus componentes estejam na raiz
+npm install
+npm run dev
+
+👨‍💻 Autor
+Desenvolvido por Eduardo Augusto.
+
+Feedbacks e sugestões são muito bem-vindos!
+
+
+---
+
+### Como salvar e subir a atualização do README:
+
+1. Abra o arquivo `README.md` no seu editor (VS Code).
+2. Substitua o conteúdo pelo modelo acima e salve (`Ctrl + S`).
+3. No terminal:
+```bash
+git add README.md
+git commit -m "docs: atualiza documentacao do README com detalhes do ClientLens"
+git push origin main
