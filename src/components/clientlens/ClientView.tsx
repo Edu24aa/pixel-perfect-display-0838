@@ -8,6 +8,7 @@ import {
   MessageSquare,
   Paperclip,
   Pencil,
+  Send,
   ShieldCheck,
 } from "lucide-react";
 
@@ -29,6 +30,7 @@ import {
   type Milestone,
 } from "@/lib/clientlens-data";
 import { StatusPill } from "./StatusPill";
+import { askClientLensAssistant } from "@/services/api";
 
 type Props = {
   project: {
@@ -63,6 +65,16 @@ export function ClientView({ project, milestones, onApprove, onRequestChange, on
     email: project.clientEmail ?? "",
     phone: project.clientPhone ?? "",
   });
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
+  const [chatMessages, setChatMessages] = useState<Array<{ role: "user" | "assistant"; text: string }>>([
+    {
+      role: "assistant",
+      text: "Olá! Posso ajudar com dúvidas sobre o ClientLens, prazos, status e o fluxo do seu projeto.",
+    },
+  ]);
 
   const now = new Date().toLocaleString("pt-BR", {
     day: "2-digit",
@@ -79,8 +91,40 @@ export function ClientView({ project, milestones, onApprove, onRequestChange, on
     });
   }, [project.client, project.clientEmail, project.clientPhone]);
 
+  const handleSendChat = async () => {
+    const message = chatInput.trim();
+    if (!message || chatLoading) return;
+
+    setChatInput("");
+    setChatError(null);
+    setChatMessages((current) => [...current, { role: "user", text: message }]);
+    setChatLoading(true);
+
+    try {
+      const reply = await askClientLensAssistant(message);
+      setChatMessages((current) => [...current, { role: "assistant", text: reply }]);
+    } catch (error) {
+      const messageError = error instanceof Error ? error.message : "Não foi possível enviar a mensagem.";
+      setChatError(messageError);
+      setChatMessages((current) => [...current, { role: "assistant", text: "Desculpe, houve um problema ao responder. Tente novamente em instantes." }]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-8">
+      {!chatOpen && (
+        <button
+          type="button"
+          className="fixed bottom-6 right-6 z-50 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground shadow-xl shadow-primary/20 transition hover:scale-[1.02]"
+          onClick={() => setChatOpen(true)}
+        >
+          <MessageSquare className="size-4" />
+          Assistente
+        </button>
+      )}
+
       <section className="rounded-xl border border-border bg-card p-6 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -95,6 +139,10 @@ export function ClientView({ project, milestones, onApprove, onRequestChange, on
           </div>
 
           <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setChatOpen((current) => !current)}>
+              <MessageSquare className="mr-2 size-4" />
+              Assistente
+            </Button>
             <Button variant="outline" size="sm" onClick={() => setProfileOpen(true)}>
               <Pencil className="mr-2 size-4" />
               Meu Perfil
@@ -118,6 +166,70 @@ export function ClientView({ project, milestones, onApprove, onRequestChange, on
           <Progress value={progressPercentage} className="mt-2 h-2" />
         </div>
       </section>
+
+      {chatOpen && (
+        <div className="fixed bottom-6 right-6 z-50 w-[min(390px,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border border-border/80 bg-card shadow-[0_20px_60px_rgba(15,23,42,0.22)] ring-1 ring-primary/10 backdrop-blur-sm">
+          <div className="flex items-center justify-between gap-2 border-b border-border bg-gradient-to-r from-primary/10 via-background to-background px-4 py-3">
+            <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+              <div className="grid size-8 place-items-center rounded-full bg-primary text-primary-foreground shadow-sm">
+                <MessageSquare className="size-4" />
+              </div>
+              Assistente ClientLens
+            </div>
+            <Button variant="ghost" size="sm" onClick={() => setChatOpen(false)}>
+              Fechar
+            </Button>
+          </div>
+
+          <div className="max-h-[320px] space-y-3 overflow-y-auto bg-background/70 p-3">
+            {chatMessages.map((message, index) => (
+              <div
+                key={`${message.role}-${index}`}
+                className={cn(
+                  "max-w-[88%] rounded-2xl px-3 py-2 text-sm leading-relaxed shadow-sm",
+                  message.role === "user"
+                    ? "ml-auto bg-primary text-primary-foreground"
+                    : "bg-muted text-foreground",
+                )}
+              >
+                {message.text}
+              </div>
+            ))}
+            {chatLoading && (
+              <div className="max-w-[88%] rounded-2xl bg-muted px-3 py-2 text-sm text-muted-foreground shadow-sm">
+                Pensando...
+              </div>
+            )}
+          </div>
+
+          {chatError && <p className="px-3 pb-2 text-xs text-destructive">{chatError}</p>}
+
+          <div className="flex gap-2 border-t border-border bg-background/80 p-3">
+            <Textarea
+              value={chatInput}
+              onChange={(event) => setChatInput(event.target.value)}
+              rows={2}
+              placeholder="Pergunte sobre o projeto, status ou prazos..."
+              className="min-h-[48px] resize-none border-muted-foreground/20 bg-background"
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  void handleSendChat();
+                }
+              }}
+            />
+            <Button
+              type="button"
+              onClick={() => void handleSendChat()}
+              disabled={chatLoading || !chatInput.trim()}
+              className="self-end rounded-xl px-3"
+            >
+              <Send className="mr-2 size-4" />
+              Enviar
+            </Button>
+          </div>
+        </div>
+      )}
 
       <section>
         <h2 className="mb-4 text-sm font-medium uppercase tracking-widest text-muted-foreground">

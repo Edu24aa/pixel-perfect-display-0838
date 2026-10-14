@@ -51,7 +51,7 @@ export async function chatHandler(req: Request, res: Response) {
     }
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.5-flash-lite',
       contents: trimmedMessage,
       config: {
         systemInstruction: CLIENTLENS_SYSTEM_INSTRUCTION,

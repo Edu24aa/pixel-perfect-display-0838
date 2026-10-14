@@ -1,6 +1,9 @@
 import type { AuditEntry, Milestone } from "@/lib/clientlens-data";
 
-export const API_BASE_URL = `${import.meta.env.VITE_API_URL || "https://pixel-perfect-display-0838.onrender.com"}/api`;
+export const API_BASE_URL = `${
+  import.meta.env.VITE_API_URL ||
+  (import.meta.env.DEV ? "http://localhost:3333" : "https://pixel-perfect-display-0838.onrender.com")
+}/api`;
 
 export type ProjectApiResponse = {
   project: {
@@ -326,4 +329,20 @@ export async function updateMilestoneStatus(id: string, status: string, dateLabe
 
   if (!res.ok) throw new Error("Falha ao atualizar status da etapa");
   return res.json();
+}
+
+export async function askClientLensAssistant(message: string): Promise<string> {
+  const res = await fetch(`${API_BASE_URL}/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    throw new Error(data.error ?? "Falha ao consultar o assistente");
+  }
+
+  return typeof data.reply === "string" ? data.reply : "Desculpe, não consegui responder agora.";
 }
